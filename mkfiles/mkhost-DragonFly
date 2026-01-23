@@ -1,5 +1,5 @@
 
-#	Variables for host system type = Unixware
+#	Variables for host system type = DragonFly
 
 SHELLTYPE=	sh
 SHELLNAME=	/bin/sh
