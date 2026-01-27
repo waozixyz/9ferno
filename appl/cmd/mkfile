@@ -29,6 +29,9 @@ TARG=\
 	9srvfs.dis\
 	9win.dis\
 	B.dis\
+	wminit.dis\
+	hello.dis\
+	simpletk.dis\
 	ar.dis\
 	archfs.dis\
 	auplay.dis\
