@@ -30,7 +30,7 @@ cd "$(dirname "$0")"
 # Function to build on NixOS
 build_nixos() {
     echo "Building on NixOS using nix-shell..."
-    nix-shell --run "export PATH=\"\$PWD/Linux/amd64/bin:\$PATH\"; mk $CLEAN_BUILD install"
+    nix-shell --run "export PATH=\"\$PWD/Linux/amd64/bin:\$PATH\"; export ROOT=\"\$PWD\"; mk $CLEAN_BUILD install"
 }
 
 # Function to build on OpenBSD
@@ -39,6 +39,7 @@ build_openbsd() {
     # OpenBSD native build
     export SYSTARG=OpenBSD
     export OBJTYPE=amd64
+    export ROOT="$(pwd)"
 
     # Build mk first if needed
     if [ ! -f Linux/amd64/bin/mk ]; then
@@ -54,6 +55,7 @@ build_openbsd() {
 build_linux() {
     echo "Building on generic Linux..."
     export PATH="$PWD/Linux/amd64/bin:$PATH"
+    export ROOT="$(pwd)"
     mk $CLEAN_BUILD install
 }
 
