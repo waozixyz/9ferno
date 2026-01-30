@@ -29,6 +29,7 @@ EMUDIRS=\
 	libkrb_render\
 	utils/data2c\
 	utils/ndate\
+	kryon\
 	emu\
 
 
