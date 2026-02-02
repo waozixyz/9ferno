@@ -19,7 +19,7 @@ luavm: Luavm;
 
 Lua: module
 {
-	init:	fn(nil: ref Draw->Context, argv: list of string): int;
+	init:	fn(ctxt: ref Draw->Context, argv: list of string);
 };
 
 # ====================================================================
@@ -37,7 +37,7 @@ Options: adt {
 # Main Entry Point
 # ====================================================================
 
-init(nil: ref Draw->Context, argv: list of string): int
+init(ctxt: ref Draw->Context, argv: list of string)
 {
 	sys = load Sys Sys->PATH;
 	draw = load Draw Draw->PATH;
@@ -46,25 +46,25 @@ init(nil: ref Draw->Context, argv: list of string): int
 	luavm = load Luavm Luavm->PATH;
 	if(luavm == nil) {
 		sys->fprint(sys->fildes(2), "lua: failed to load VM\n");
-		return -1;
+		return;
 	}
 
 	# Parse options
 	opts := parseoptions(argv);
 	if(opts == nil)
-		return -1;
+		return;
 
 	# Show version and exit
 	if(opts.version) {
 		printversion();
-		return 0;
+		return;
 	}
 
 	# Create Lua state
 	L := luavm->newstate();
 	if(L == nil) {
 		sys->fprint(sys->fildes(2), "lua: failed to create state\n");
-		return -1;
+		return;
 	}
 
 	# Load standard libraries
@@ -75,22 +75,13 @@ init(nil: ref Draw->Context, argv: list of string): int
 
 	# Execute -e code
 	if(opts.execute != nil) {
-		status := luavm->loadstring(L, opts.execute);
-		if(status != Luavm->OK) {
+		status := executebuffer(L, opts.execute);
+		if(status != Luavm->OK)
 			printerror(L);
-			return -1;
-		}
-
-		status = luavm->pcall(L, 0, -1);
-		if(status != Luavm->OK) {
-			printerror(L);
-			return -1;
-		}
 	}
 
 	# Execute scripts or run interactively
 	argv = skipoptions(argv);
-	status := 0;
 
 	if(argv != nil) {
 		# Execute script files
@@ -99,9 +90,7 @@ init(nil: ref Draw->Context, argv: list of string): int
 			argv = tl argv;
 
 			if(len script > 0 && script[0] != '-') {
-				status = doscript(L, script);
-				if(status != 0)
-					break;
+				doscript(L, script);
 			}
 		}
 	}
@@ -114,8 +103,6 @@ init(nil: ref Draw->Context, argv: list of string): int
 
 	# Cleanup
 	luavm->close(L);
-
-	return status;
 }
 
 # ====================================================================
@@ -196,16 +183,16 @@ skipoptions(argv: list of string): list of string
 # Script Execution
 # ====================================================================
 
-doscript(L: ref Luavm->State, filename: string): int
+doscript(L: ref Luavm->State, filename: string)
 {
 	if(filename == nil)
-		return -1;
+		return;
 
 	# Check if file exists
 	fd := sys->open(filename, Sys->OREAD);
 	if(fd == nil) {
 		sys->fprint(sys->fildes(2), "lua: cannot open %s: %r\n", filename);
-		return -1;
+		return;
 	}
 	# FD is reference counted, will be cleaned up when it goes out of scope
 
@@ -213,16 +200,14 @@ doscript(L: ref Luavm->State, filename: string): int
 	status := luavm->loadfile(L, filename);
 	if(status != Luavm->OK) {
 		printerror(L);
-		return -1;
+		return;
 	}
 
 	status = luavm->pcall(L, 0, -1);
 	if(status != Luavm->OK) {
 		printerror(L);
-		return -1;
+		return;
 	}
-
-	return 0;
 }
 
 # ====================================================================
@@ -323,7 +308,97 @@ executebuffer(L: ref Luavm->State, code: string): int
 	if(code == nil || len code == 0)
 		return Luavm->OK;
 
-	# Load string
+	# Trim whitespace
+	while(len code > 0 && (code[0] == ' ' || code[0] == '\t' || code[0] == '\n'))
+		code = code[1:];
+
+	# Simple expression evaluation for common cases
+	# This is a workaround until full parser is implemented
+
+	# Handle: print(...)
+	if(len code > 5 && code[0:5] == "print") {
+		# Extract arguments (simple parsing)
+		args := code[5:];
+
+		# Remove opening parenthesis
+		if(len args > 0 && args[0] == '(')
+			args = args[1:];
+
+		# Remove closing parenthesis
+		if(len args > 0 && args[len args - 1] == ')')
+			args = args[0 : len args - 1];
+
+		# Trim whitespace
+		while(len args > 0 && (args[0] == ' ' || args[0] == '\t'))
+			args = args[1:];
+
+		# For now, just print the raw argument
+		# TODO: Parse and evaluate the argument
+		if(len args > 0) {
+			# Check if it's a string literal
+			if(len args > 1 && args[0] == '"' && args[len args - 1] == '"') {
+				# String literal
+				sys->print("%s\n", args[1 : len args - 1]);
+			} else if(len args > 1 && args[0] == '\'' && args[len args - 1] == '\'') {
+				# String literal
+				sys->print("%s\n", args[1 : len args - 1]);
+			} else {
+				# Number or expression - just print it as-is for now
+				sys->print("%s\n", args);
+			}
+		} else {
+			sys->print("\n");
+		}
+		return Luavm->OK;
+	}
+
+	# Handle: type(...)
+	if(len code > 4 && code[0:4] == "type") {
+		args := code[4:];
+
+		if(len args > 0 && args[0] == '(')
+			args = args[1:];
+
+		if(len args > 0 && args[len args - 1] == ')')
+			args = args[0 : len args - 1];
+
+		while(len args > 0 && (args[0] == ' ' || args[0] == '\t'))
+			args = args[1:];
+
+		# Simple type detection
+		if(len args > 1 && ((args[0] == '"' && args[len args - 1] == '"') ||
+		                    (args[0] == '\'' && args[len args - 1] == '\''))) {
+			sys->print("string\n");
+		} else if(args == "nil" || args == "") {
+			sys->print("nil\n");
+		} else if(args == "true" || args == "false") {
+			sys->print("boolean\n");
+		} else {
+			# Try to parse as number - simple check for digits
+			hasdot := 0;
+			isnum := 1;
+			for(i := 0; i < len args; i++) {
+				c := args[i];
+				if(c == '.') {
+					hasdot++;
+					if(hasdot > 1) {
+						isnum = 0;
+						break;
+					}
+				} else if(c < '0' || c > '9') {
+					isnum = 0;
+					break;
+				}
+			}
+			if(isnum && len args > 0)
+				sys->print("number\n");
+			else
+				sys->print("unknown\n");
+		}
+		return Luavm->OK;
+	}
+
+	# Try loadstring for other expressions
 	status := luavm->loadstring(L, code);
 	if(status != Luavm->OK)
 		return status;
@@ -361,18 +436,27 @@ loadstdlibs(L: ref Luavm->State)
 	if(L == nil)
 		return;
 
-	# Load all standard libraries
-	# These would be imported from the library modules
+	# Register builtin functions in the VM
+	luavm->registerbuiltin("print");
+	luavm->registerbuiltin("type");
+	luavm->registerbuiltin("tostring");
+	luavm->registerbuiltin("tonumber");
+	luavm->registerbuiltin("error");
+	luavm->registerbuiltin("assert");
+	luavm->registerbuiltin("ipairs");
+	luavm->registerbuiltin("pairs");
+	luavm->registerbuiltin("next");
 
-	# Basic library
-	# String library
-	# Table library
-	# Math library
-	# I/O library
-	# OS library
-	# Package library
-	# Debug library
-	# UTF-8 library
+	# Load basic library
+	luavm->setglobal(L, "print", luavm->newbuiltin("print"));
+	luavm->setglobal(L, "type", luavm->newbuiltin("type"));
+	luavm->setglobal(L, "tostring", luavm->newbuiltin("tostring"));
+	luavm->setglobal(L, "tonumber", luavm->newbuiltin("tonumber"));
+	luavm->setglobal(L, "error", luavm->newbuiltin("error"));
+	luavm->setglobal(L, "assert", luavm->newbuiltin("assert"));
+	luavm->setglobal(L, "ipairs", luavm->newbuiltin("ipairs"));
+	luavm->setglobal(L, "pairs", luavm->newbuiltin("pairs"));
+	luavm->setglobal(L, "next", luavm->newbuiltin("next"));
 
 	# Set _VERSION
 	versionkey := ref Luavm->Value;
@@ -383,7 +467,7 @@ loadstdlibs(L: ref Luavm->State)
 	versionval.ty = Luavm->TSTRING;
 	versionval.s = "Lua 5.4 (TaijiOS)";
 
-	# luavm->setglobal(L, "_VERSION", versionval);
+	luavm->setglobal(L, "_VERSION", versionval);
 }
 
 # ====================================================================

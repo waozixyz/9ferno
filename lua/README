@@ -1,0 +1,41 @@
+LUA(1)
+
+NAME
+     lua - Lua 5.4 VM for Inferno/Limbo
+
+SYNOPSIS
+     lua [ options ] [ script [ args ] ]
+
+DESCRIPTION
+     Lua is a powerful, efficient, lightweight, embeddable scripting language.
+     This implementation runs on Inferno/Limbo as a .dis module.
+
+     Options:
+       -e stat  Execute string 'stat'
+       -i       Enter interactive mode after executing scripts
+       -v       Show version information
+       -h       Show this help
+
+     In interactive mode:
+       Empty line clears multi-line buffer
+       EOF (Ctrl-D) exits
+
+EXAMPLES
+     # Run a script
+     lua hello.lua
+
+     # Execute expression
+     lua -e "print('Hello, World!')"
+
+     # Interactive REPL
+     lua
+
+     # Execute from stdin
+     lua < script.lua
+
+SEE ALSO
+     http://www.lua.org/
+
+BUGS
+     Only the core VM is implemented.  Standard libraries are loaded through
+     the generic module loading system.

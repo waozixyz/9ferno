@@ -44,6 +44,7 @@ Luavm : module {
 		proto:	cyclic ref Proto;	# Function prototype (Lua functions)
 		upvals:	array of ref Upval;	# Upvalues
 		env:	cyclic ref Table;	# Environment table
+		builtin:	string;		# Builtin function name (for C closures)
 	};
 
 	# Function prototype
@@ -280,4 +281,28 @@ Luavm : module {
 
 	# About this implementation
 	about:	fn(): array of string;
+
+	# ============================================================
+	# Builtin Function Registration API
+	# ============================================================
+
+	# Register a builtin function handler
+	# name: name of the builtin function
+	# Returns 0 on success, -1 on failure
+	registerbuiltin:	fn(name: string): int;
+
+	# Create a C closure referencing a builtin function
+	# name: name of the registered builtin
+	# Returns the function value
+	newbuiltin:	fn(name: string): ref Value;
+
+	# Set a global variable
+	# name: global variable name
+	# value: value to set
+	setglobal:	fn(L: ref State, name: string, value: ref Value);
+
+	# Get a global variable
+	# name: global variable name
+	# Returns the value
+	getglobal:	fn(L: ref State, name: string): ref Value;
 };

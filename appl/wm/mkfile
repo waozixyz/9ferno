@@ -11,3 +11,6 @@ DISBIN=$ROOT/dis
 
 install:V:
 	# Nothing to install
+
+clean:V:
+	rm -f *.dis *.sbl
