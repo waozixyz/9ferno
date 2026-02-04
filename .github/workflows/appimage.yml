@@ -43,6 +43,7 @@ jobs:
           # Create output directory and copy pre-built mk binary
           mkdir -p Linux/amd64/bin
           cp utils/mk/mk Linux/amd64/bin/mk
+          chmod +x Linux/amd64/bin/mk
           chmod +x run.sh
           ./run.sh --build
 
