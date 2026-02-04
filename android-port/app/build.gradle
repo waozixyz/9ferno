@@ -44,13 +44,20 @@ android {
 	externalNativeBuild {
 		cmake {
 			path file('src/main/cpp/CMakeLists.txt')
-			version "3.18.1"
+			version "3.22.1"
 		}
 	}
 
 	packagingOptions {
 		jniLibs {
 			useLegacyPackaging = false
+		}
+	}
+
+	// Remove icon for now
+	applicationVariants.all { variant ->
+		variant.outputs.all { output ->
+			// No icon for now
 		}
 	}
 }
