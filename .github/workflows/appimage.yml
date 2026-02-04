@@ -63,18 +63,25 @@ jobs:
           # Build libbio
           echo "Building libbio..."
           cd $ROOT/libbio
-          $CC *.c
+          $CC bbuffered.c bfildes.c bflush.c bgetc.c bgetd.c bgetrune.c binit.c \
+             boffset.c bprint.c bputc.c bputrune.c brdline.c brdstr.c bread.c \
+             bseek.c bvprint.c bwrite.c
           $AR $PLAT/lib/libbio.a *.o
           $RANLIB $PLAT/lib/libbio.a
 
-          # Build lib9
+          # Build lib9 (files needed for mk, no kernel/threading files)
           echo "Building lib9..."
           cd $ROOT/lib9
-          $CC dirstat-posix.c rerrstr.c errstr-posix.c getuser-posix.c \
-             charstod.c cleanname.c create.c dirwstat.c *_print*.c *_fmt*.c \
-             exits.c getfields.c pow10.c print.c qsort.c rune.c runestrlen.c \
-             seek.c strdup.c strtoll.c utflen.c utfrrune.c utfrune.c utf*.c \
-             *_str*cpy*.c lock.c sbrk-posix.c
+          $CC argv0.c charstod.c cleanname.c create.c dirstat-posix.c dirwstat.c \
+             dofmt.c dorfmt.c errfmt.c errstr-posix.c exits.c fcallfmt.c fltfmt.c \
+             fmt.c fmtfd.c fmtlock.c fmtprint.c fmtquote.c fmtrune.c fmtstr.c \
+             fmtvprint.c fprint.c getfields.c getuser-posix.c isnan-posix.c \
+             mallocz.c nulldir.c pow10.c print.c qsort.c rerrstr.c rune.c \
+             runeseprint.c runesmprint.c runesnprint.c runestrlen.c runevseprint.c \
+             sbrk-posix.c seprint.c seek.c smprint.c snprint.c sprint.c strdup.c \
+             strecpy.c strtoll.c strtoull.c u16.c u32.c u64.c utfecpy.c utflen.c \
+             utfnlen.c utfrrune.c utfrune.c vfprint.c vseprint.c vsmprint.c \
+             vsnprint.c
           $AR $PLAT/lib/lib9.a *.o
           $RANLIB $PLAT/lib/lib9.a
 
