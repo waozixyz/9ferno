@@ -66,21 +66,20 @@ build_linux() {
     echo "Building on generic Linux..."
     export ROOT="$(pwd)"
 
-    # Ensure PATH has system mk before adding local bin (for bootstrap)
-    # Check if plan9port mk is available
-    if [ -n "$PLAN9" ] && [ -f "$PLAN9/bin/mk" ]; then
-        export PATH="$PLAN9/bin:$PATH"
+    # Check if mk exists locally, bootstrap if needed
+    if [ ! -f "Linux/amd64/bin/mk" ]; then
+        echo "mk not found, bootstrapping..."
+        if command -v mk >/dev/null 2>&1; then
+            # Use system mk to build local mk
+            (cd utils/mk && mk install)
+        else
+            # No mk available - need to build with gcc
+            echo "Error: mk not found in PATH"
+            echo "Please run ./makemk.sh or install mk"
+            exit 1
+        fi
     fi
 
-    # Bootstrap: build mk first if not available locally
-    if [ ! -f "Linux/amd64/bin/mk" ] && command -v mk >/dev/null 2>&1; then
-        echo "Building mk build tool (bootstrap)..."
-        (cd utils/mk && mk install) || {
-            echo "Warning: bootstrap mk build failed, continuing with system mk"
-        }
-    fi
-
-    # Now add local bin to PATH
     export PATH="$PWD/Linux/amd64/bin:$PATH"
     mk $CLEAN_BUILD install
 }
