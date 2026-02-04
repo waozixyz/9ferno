@@ -12,12 +12,21 @@ Window {
     width = 400
     height = 300
 
-    Center {
-        Button {
-            text = "Click Me"
-            color = "white"
-            backgroundColor = "#404080"
-            onClick = handleClick
+
+    Container {
+        posX = 200
+        posY = 100
+        width = 200
+        height = 100
+        background = "#191970"
+        borderColor = "#0099FF"
+        borderWidth = 2
+        contentAlignment = "center"
+
+        Text {
+            text = "Hello World"
+            color = "yellow"
+            background = "#191970"
         }
     }
 }

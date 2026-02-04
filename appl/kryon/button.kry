@@ -1,59 +1,25 @@
-// Kryon Button Demo
-// Multiple buttons with different click handlers
+
 
 @limbo
-handleRed: fn(top: ref Tk->Toplevel) {
-    sys->print("Red button clicked!\n");
-};
-
-handleGreen: fn(top: ref Tk->Toplevel) {
-    sys->print("Green button clicked!\n");
-};
-
-handleBlue: fn(top: ref Tk->Toplevel) {
-    sys->print("Blue button clicked!\n");
+handleClickLimbo: fn() {
+    sys->print("Hello from Limbo+Kryon!\n");
 };
 @end
 
 Window {
-    title = "Button Demo"
-    width = 500
-    height = 400
-    background = "#1a1a2e"
+  title = "Interactive Button Demo"
+  width = 600
+  height = 400
+  background = "#191919"
 
-    Column {
-        gap = 20
-        padding = 30
-
-        Text {
-            text = "Click a Button"
-            fontSize = 24
-            color = "white"
-        }
-
-        Row {
-            gap = 20
-
-            Button {
-                text = "Red"
-                color = "white"
-                backgroundColor = "#e74c3c"
-                onClick = handleRed
-            }
-
-            Button {
-                text = "Green"
-                color = "white"
-                backgroundColor = "#2ecc71"
-                onClick = handleGreen
-            }
-
-            Button {
-                text = "Blue"
-                color = "white"
-                backgroundColor = "#3498db"
-                onClick = handleBlue
-            }
-        }
+  Center {
+    Button {
+      text = "Click Me!"
+      width = 150
+      height = 50
+      color = "pink"
+      background = "#404080"
+      onClick = handleClickLimbo
     }
+  }
 }

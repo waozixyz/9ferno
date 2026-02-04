@@ -46,7 +46,7 @@ set(EMU_PORT_SOURCES
 	${EMU_PORT}/devcap.c
 	${EMU_PORT}/devcmd.c
 	${EMU_PORT}/devcons.c
-	${EMU_PORT}/devdraw.c
+	# devdraw.c excluded for Phase 1 - requires full graphics stack
 	${EMU_PORT}/devdup.c
 	${EMU_PORT}/devenv.c
 	# deveia-posix.c excluded - serial port not needed for Phase 1
@@ -187,7 +187,8 @@ list(FILTER LIBINTERP_SOURCES EXCLUDE REGEX ".*das-spim.*")
 list(FILTER LIBINTERP_SOURCES EXCLUDE REGEX ".*das-stub.*")
 # Exclude test programs and files with duplicate symbols
 list(FILTER LIBINTERP_SOURCES EXCLUDE REGEX ".*decgen\\.c")
-list(FILTER LIBINTERP_SOURCES EXCLUDE REGEX ".*draw\\.c")
+# heapaudit.c excluded - references fakeTkTop from tk.c, not needed for Phase 1
+list(FILTER LIBINTERP_SOURCES EXCLUDE REGEX ".*heapaudit\\.c")
 
 # libdraw source files
 file(GLOB_RECURSE LIBDRAW_SOURCES
@@ -196,6 +197,10 @@ file(GLOB_RECURSE LIBDRAW_SOURCES
 list(FILTER LIBDRAW_SOURCES EXCLUDE REGEX ".*x11.*")
 list(FILTER LIBDRAW_SOURCES EXCLUDE REGEX ".*winx.*")
 list(FILTER LIBDRAW_SOURCES EXCLUDE REGEX ".*test\\.c")
+# Exclude files that conflict with libinterp/draw.c wrappers
+list(FILTER LIBDRAW_SOURCES EXCLUDE REGEX ".*freesubfont\\.c")
+list(FILTER LIBDRAW_SOURCES EXCLUDE REGEX ".*subfontcache\\.c")
+list(FILTER LIBDRAW_SOURCES EXCLUDE REGEX ".*subfontname\\.c")
 
 # libmemdraw source files
 file(GLOB_RECURSE LIBMEMDRAW_SOURCES
@@ -228,6 +233,7 @@ set(TAIJIOS_SOURCES
 	${EMU_ANDROID_SOURCES}
 	${LIB9_SOURCES}
 	${LIBINTERP_SOURCES}
+	# Graphics libraries - testing for Phase 2
 	${LIBDRAW_SOURCES}
 	${LIBMEMDRAW_SOURCES}
 	${LIBTK_SOURCES}

@@ -1,6 +1,0 @@
-Window {
-    title = "Test"
-    Button {
-        text = "Hello"
-    }
-}

@@ -1355,10 +1355,7 @@ errorf(char *fmt, ...)
 /* poolalloc is defined in emu/port/alloc.c */
 
 /* Type constants for heap auditing */
-int TDisplay = 0;
-int TFont = 1;
-int TImage = 2;
-int TScreen = 3;
+/* TDisplay, TFont, TImage, TScreen defined in libinterp/draw.c - excluded here */
 int TSigAlg = 4;
 int TCertificate = 5;
 int TDESstate = 6;
@@ -2161,11 +2158,7 @@ tkposn(void *t)
 	return "";
 }
 
-void*
-checkdisplay(void)
-{
-	return nil;
-}
+/* checkdisplay defined in libinterp/draw.c - excluded here */
 
 void*
 tknewobj(void *tk, void *parent, char *name, char *type)
@@ -2228,13 +2221,7 @@ libqunlock(void)
 {
 }
 
-void*
-lookupimage(char *name, int lock)
-{
-	USED(name);
-	USED(lock);
-	return nil;
-}
+/* lookupimage defined in libinterp/draw.c - excluded here */
 
 Rectangle
 tkrect(void *t)
@@ -2244,16 +2231,7 @@ tkrect(void *t)
 	return r;
 }
 
-void*
-mkdrawimage(void *tk, void *d, char *name, char *data, int ndata)
-{
-	USED(tk);
-	USED(d);
-	USED(name);
-	USED(data);
-	USED(ndata);
-	return nil;
-}
+/* mkdrawimage defined in libinterp/draw.c - excluded here */
 
 /* newprog is in emu/port/dis.c */
 
@@ -2262,14 +2240,7 @@ void *_display = nil;
 void *_drawinfo = nil;
 void *_screen = nil;
 
-/* Buffer image */
-uchar*
-bufimage(void *d, int n)
-{
-	USED(d);
-	USED(n);
-	return nil;
-}
+/* bufimage defined in libinterp/draw.c - excluded here */
 
 long
 libread(int fd, void *buf, long len)
@@ -2343,14 +2314,7 @@ void Sys_print(void)
 {
 }
 
-/* Flush image buffer */
-int
-flushimage(void *d, int visible)
-{
-	USED(d);
-	USED(visible);
-	return 0;
-}
+/* flushimage defined in libinterp/draw.c - excluded here */
 
 /* Bio functions */
 typedef struct Biobuf Biobuf;
@@ -2364,14 +2328,7 @@ Bopen(char *name, int mode)
 	return -1;
 }
 
-void
-drawerror(char *fmt, ...)
-{
-	va_list args;
-	va_start(args, fmt);
-	USED(fmt);
-	va_end(args);
-}
+/* drawerror defined in libinterp/draw.c - excluded here */
 
 char*
 Brdline(Biobuf *bp, int n)
@@ -2734,20 +2691,9 @@ tkrgba(int red, int green, int blue, int alpha)
 	return 0;
 }
 
-void*
-display_open(char *name)
-{
-	USED(name);
-	return nil;
-}
+/* display_open defined in libinterp/draw.c - excluded here */
 
-void*
-font_open(char *name, int height)
-{
-	USED(name);
-	USED(height);
-	return nil;
-}
+/* font_open defined in libinterp/draw.c - excluded here */
 
 char**
 tkdupenv(char **env)
@@ -2802,11 +2748,7 @@ void Sys_pread(void)
 }
 
 /* Font functions */
-void
-font_close(void *f)
-{
-	USED(f);
-}
+/* font_close defined in libinterp/draw.c - excluded here */
 
 /* Tk environment functions */
 char**

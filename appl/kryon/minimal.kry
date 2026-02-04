@@ -1,7 +1,0 @@
-Window {
-    title = "Minimal Test"
-
-    Button {
-        text = "Test"
-    }
-}
