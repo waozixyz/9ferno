@@ -30,6 +30,7 @@ EMUDIRS=\
 	utils/data2c\
 	utils/ndate\
 	emu\
+	os/init\
 
 
 KERNEL_DIRS=\

@@ -20,6 +20,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Cache TaijiOS build
+        id: cache-build
+        uses: actions/cache@v4
+        with:
+          path: |
+            Linux/amd64
+            dis
+            module
+          key: ${{ runner.os }}-taijios-${{ hashFiles('mkfile', 'mkconfig', '**/*.mkfile', '**/mkfile') }}
+          restore-keys: |
+            ${{ runner.os }}-taijios-
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
