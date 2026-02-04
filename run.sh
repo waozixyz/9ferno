@@ -64,8 +64,24 @@ build_openbsd() {
 # Function to build on generic Linux
 build_linux() {
     echo "Building on generic Linux..."
-    export PATH="$PWD/Linux/amd64/bin:$PATH"
     export ROOT="$(pwd)"
+
+    # Ensure PATH has system mk before adding local bin (for bootstrap)
+    # Check if plan9port mk is available
+    if [ -n "$PLAN9" ] && [ -f "$PLAN9/bin/mk" ]; then
+        export PATH="$PLAN9/bin:$PATH"
+    fi
+
+    # Bootstrap: build mk first if not available locally
+    if [ ! -f "Linux/amd64/bin/mk" ] && command -v mk >/dev/null 2>&1; then
+        echo "Building mk build tool (bootstrap)..."
+        (cd utils/mk && mk install) || {
+            echo "Warning: bootstrap mk build failed, continuing with system mk"
+        }
+    fi
+
+    # Now add local bin to PATH
+    export PATH="$PWD/Linux/amd64/bin:$PATH"
     mk $CLEAN_BUILD install
 }
 

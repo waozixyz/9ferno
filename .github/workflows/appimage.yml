@@ -36,8 +36,21 @@ jobs:
             libxext-dev \
             wget \
             imagemagick \
-            fuse \
-            9base
+            fuse
+
+      - name: Install plan9port mk
+        run: |
+          # Clone plan9port
+          git clone https://github.com/9fans/plan9port.git /tmp/plan9port
+          cd /tmp/plan9port
+
+          # Install plan9port (builds mk and other tools)
+          # PLAN9 environment will be set to /usr/local/plan9 by default
+          sudo ./INSTALL
+
+          # Add plan9port to PATH for subsequent steps
+          echo "PLAN9=/usr/local/plan9" >> $GITHUB_ENV
+          echo "$PLAN9/bin" >> $GITHUB_PATH
 
       - name: Build TaijiOS
         run: |
