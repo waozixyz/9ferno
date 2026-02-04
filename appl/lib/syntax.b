@@ -46,7 +46,7 @@ enabled() : int
 detect(filename : string, content : string) : string
 {
 	# Check extension
-	(base, ext) := splitext(filename);
+	(_, ext) := splitext(filename);
 	if (ext != nil) {
 		for (i := 0; i < len extmap; i++) {
 			if (ext == extmap[i].ext)
@@ -255,7 +255,7 @@ is_c_type(word : string) : int
 
 contains_pattern(pattern : string, word : string) : int
 {
-	(n, parts) := sys->tokenize(pattern, "|");
+	(_, parts) := sys->tokenize(pattern, "|");
 	for (; parts != nil; parts = tl parts) {
 		if (hd parts == word)
 			return 1;

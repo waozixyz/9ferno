@@ -17,6 +17,7 @@ filem : Filem;
 columnm : Columnm;
 windowm : Windowm;
 exec : Exec;
+syntaxm : Syntax;
 
 Dir, sprint : import sys;
 frgetmouse : import acme;
@@ -121,6 +122,7 @@ init(mods : ref Dat->Mods)
 	columnm = mods.columnm;
 	windowm = mods.windowm;
 	exec = mods.exec;
+	syntaxm = mods.syntaxm;
 }
 
 TABDIR : con 3;	# width of tabs in directory windows
@@ -157,6 +159,21 @@ Text.init(t : self ref Text, f : ref File, r : Rect, rf : ref Dat->Reffont, cols
 	t.tabstop = dat->maxtab;
 	for(i:=0; i<Framem->NCOL; i++)
 		t.frame.cols[i] = cols[i];
+
+	# Initialize syntax colors if syntax highlighting is enabled
+	if(syntaxm != nil && syntaxm->enabled()){
+		# Syntax colors: RGBA format
+		t.frame.syncols[Framem->SYN_KWD] = display.color(Draw->Blue);      # Blue
+		t.frame.syncols[Framem->SYN_STR] = display.color(Draw->Green);     # Green
+		t.frame.syncols[Framem->SYN_CHR] = display.color(Draw->Green);     # Green
+		t.frame.syncols[Framem->SYN_NUM] = display.color(Draw->Red);       # Red
+		t.frame.syncols[Framem->SYN_COM] = display.color((16r88<<24)|(16r88<<16)|(16r88<<8)|16rFF); # Grey
+		t.frame.syncols[Framem->SYN_TYPE] = display.color((16r80<<24)|(16r00<<16)|(16r80<<8)|16rFF); # Purple
+		t.frame.syncols[Framem->SYN_FN] = display.color((16r00<<24)|(16r64<<16)|(16r00<<8)|16rFF); # Dark Green
+		t.frame.syncols[Framem->SYN_OP] = display.color((16r00<<24)|(16r00<<16)|(16r88<<8)|16rFF); # Dark Blue
+		t.frame.syncols[Framem->SYN_PRE] = display.color((16r8B<<24)|(16r45<<16)|(16r13<<8)|16rFF); # Brown
+		t.frame.syncols[Framem->SYN_ID] = t.frame.cols[Framem->TEXT];
+	}
 	t.redraw(r, rf.f, mainwin, -1);
 }
 
@@ -575,6 +592,9 @@ Text.fill(t : self ref Text)
 	}while(t.frame.lastlinefull == FALSE);
 	strfree(rp);
 	rp = nil;
+
+	# Apply syntax highlighting if enabled
+	applysyntax(t);
 }
 
 Text.delete(t : self ref Text, q0 : int, q1 : int, tofile : int)
@@ -1452,4 +1472,113 @@ Text.reset(t : self ref Text)
 	t.q1 = 0;
 	t.file.reset();
 	t.file.buf.reset();
+}
+
+# Apply syntax highlighting to the frame
+# This is a simple implementation that colors boxes based on their content
+applysyntax(t : ref Text)
+{
+	if(syntaxm == nil || !syntaxm->enabled())
+		return;
+	if(t.what != Body)
+		return;
+
+	# Detect language from file name
+	lang := syntaxm->detect(t.file.name, nil);
+	if(lang == nil)
+		return;
+
+	# For MVP: simple approach - color boxes based on their content
+	# This can be enhanced to use proper tokenization later
+	i : int;
+	for(i = 0; i < t.frame.nbox; i++){
+		b := t.frame.box[i];
+		if(b.nrune <= 0 || b.ptr == nil)
+			continue;
+
+		# Skip whitespace and empty boxes
+		if(b.nrune == 1 && (b.ptr[0] == ' ' || b.ptr[0] == '\t' || b.ptr[0] == '\n'))
+			continue;
+
+		# Simple keyword matching for now
+		word := b.ptr[0:b.nrune];
+		b.coloridx = getsyntaxcolor(word, lang);
+	}
+}
+
+# Get syntax color index for a word (simple keyword matching)
+getsyntaxcolor(word : string, lang : string) : int
+{
+	# Check for common keywords and types
+	case lang {
+	"c" =>
+		if(isckeyword(word)) return Framem->SYN_KWD;
+		if(iscctype(word)) return Framem->SYN_TYPE;
+	"limbo" =>
+		if(islimbokeyword(word)) return Framem->SYN_KWD;
+		if(islimbotype(word)) return Framem->SYN_TYPE;
+	"kryon" =>
+		if(islimbokeyword(word)) return Framem->SYN_KWD;
+		if(islimbotype(word)) return Framem->SYN_TYPE;
+	"lua" =>
+		if(isluakeyword(word)) return Framem->SYN_KWD;
+	"tcl" =>
+		if(istclkeyword(word)) return Framem->SYN_KWD;
+	"shell" =>
+		if(ishellkeyword(word)) return Framem->SYN_KWD;
+	}
+	return -1;  # Use default color
+}
+
+# Simple keyword check functions
+isckeyword(w : string) : int
+{
+	keywords := "auto|break|case|char|const|continue|default|do|double|else|enum|extern|float|for|goto|if|int|long|register|return|short|signed|sizeof|static|struct|switch|typedef|union|unsigned|void|volatile|while";
+	return containsword(keywords, w);
+}
+
+iscctype(w : string) : int
+{
+	types := "int|char|short|long|float|double|void|unsigned|signed|bool|size_t|uint8_t|int8_t|uint16_t|int16_t|uint32_t|int32_t|uint64_t|int64_t";
+	return containsword(types, w);
+}
+
+islimbokeyword(w : string) : int
+{
+	keywords := "alt|break|case|con|continue|cyclic|do|else|for|if|implement|import|include|init|len|load|lock|module|return|self|spawn|typeof|while";
+	return containsword(keywords, w);
+}
+
+islimbotype(w : string) : int
+{
+	types := "int|big|real|string|byte|list|array|chan|fn|ref|adt";
+	return containsword(types, w);
+}
+
+isluakeyword(w : string) : int
+{
+	keywords := "and|break|do|else|elseif|end|false|for|function|if|in|local|nil|not|or|repeat|return|then|true|until|while";
+	return containsword(keywords, w);
+}
+
+istclkeyword(w : string) : int
+{
+	keywords := "if|then|else|elseif|for|foreach|while|break|continue|return|proc|global|upvar|set|incr|append|lappend|lassign|lindex|llength|lrange|lsearch|lreplace|lsort|concat|join|split|format|scan|expr|catch|error|switch|package|namespace";
+	return containsword(keywords, w);
+}
+
+ishellkeyword(w : string) : int
+{
+	keywords := "if|then|else|elif|fi|for|while|do|done|case|esac|function|select|until|in|time|return|break|continue|true|false|local|readonly|export|shift|unset|exec|eval|source|read|echo|printf|test|cd|pwd|exit";
+	return containsword(keywords, w);
+}
+
+containsword(pattern : string, word : string) : int
+{
+	(n, parts) := sys->tokenize(pattern, "|");
+	for(; parts != nil; parts = tl parts){
+		if((hd parts) == word)
+			return 1;
+	}
+	return 0;
 }

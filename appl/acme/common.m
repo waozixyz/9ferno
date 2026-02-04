@@ -30,3 +30,4 @@ include "edit.m";
 include "elog.m";
 include "ecmd.m";
 include "styxaux.m";
+include "syntax.m";

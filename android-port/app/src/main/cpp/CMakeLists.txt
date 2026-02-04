@@ -52,8 +52,11 @@ set(EMU_PORT_SOURCES
 	${EMU_PORT}/devsrv.c
 	${EMU_PORT}/devssl.c
 	${EMU_PORT}/devtab.c
+	${EMU_PORT}/dis.c
 	${EMU_PORT}/error.c
 	${EMU_PORT}/kproc-pthreads.c
+	${EMU_PORT}/pgrp.c
+	${EMU_PORT}/proc.c
 	${EMU_PORT}/qio.c
 	${EMU_PORT}/random.c
 	${EMU_PORT}/parse.c

@@ -31,6 +31,7 @@ init(mods : ref Dat->Mods)
 	utils = mods.utils;
 	textm = mods.textm;
 
+	initnilfrbox();
 	frame = newframe();
 }
 
@@ -126,6 +127,16 @@ xfrfreebox(f : ref Frame, n0 : int, n1 : int)		# inclusive
 }
 
 nilfrbox : Frbox;
+
+initnilfrbox()
+{
+	nilfrbox.wid = 0;
+	nilfrbox.nrune = 0;
+	nilfrbox.ptr = nil;
+	nilfrbox.bc = 0;
+	nilfrbox.minwid = 0;
+	nilfrbox.coloridx = -1;  # Default: use TEXT color
+}
 
 xfrgrowbox(f : ref Frame, delta : int)
 {
@@ -405,8 +416,13 @@ frdrawsel0(f : ref Frame, pt : Point, p0 : int, p1 : int, back : ref Image, text
 		if(x > f.r.max.x)
 			x = f.r.max.x;
 		draw(f.b, (pt, (x, pt.y+f.font.height)), back, nil, pt);
-		if(b.nrune >= 0)
-			graph->stringx(f.b, pt, f.font, ptr[0:nr], text);
+		if(b.nrune >= 0){
+			# Use syntax color if box has coloridx >= 0, otherwise use default text color
+			boxcolor := text;
+			if(b.coloridx >= 0 && b.coloridx < len f.syncols)
+				boxcolor = f.syncols[b.coloridx];
+			graph->stringx(f.b, pt, f.font, ptr[0:nr], boxcolor);
+		}
 		pt.x += w;
 		p += nr;
 	}

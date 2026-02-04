@@ -316,16 +316,8 @@ limbosleep(ulong milsec)
 
 /*
  * Android: OS-specific enter/leave for critical sections
+ * osenter and osleave are implemented in emu/port/proc.c
  */
-void
-osenter(void)
-{
-}
-
-void
-osleave(void)
-{
-}
 
 /*
  * Semaphore operations using pthread
@@ -443,20 +435,7 @@ attachscreen(char *label, char *win)
 	return nil;
 }
 
-void
-Sleep(Rendez *r, int (*f)(void*), void *arg)
-{
-	USED(r);
-	USED(f);
-	USED(arg);
-}
-
-int
-Wakeup(Rendez *r)
-{
-	USED(r);
-	return 0;
-}
+/* Sleep and Wakeup are implemented in emu/port/proc.c */
 
 int
 memlnorefresh(Memimage *m)
@@ -607,18 +586,7 @@ pc2dispc(uchar *pc, char *buf, int n)
 
 /* poolmsize is defined in emu/port/alloc.c */
 
-/* Runtime functions */
-void
-delruntail(Proc *p)
-{
-	USED(p);
-}
-
-void
-addrun(Proc *p)
-{
-	USED(p);
-}
+/* Runtime functions (acquire, release, delruntail, addrun) are in emu/port/proc.c */
 
 /* Channel operations - stub */
 int
@@ -759,23 +727,7 @@ md5(uchar *data, ulong dlen, uchar *digest, DigestState *s)
 	return nil;
 }
 
-void
-closefgrp(Fgrp *f)
-{
-	USED(f);
-}
-
-void
-closepgrp(Pgrp *p)
-{
-	USED(p);
-}
-
-void
-closeegrp(Egrp *e)
-{
-	USED(e);
-}
+/* closefgrp, closepgrp, closeegrp are in emu/port/pgrp.c */
 
 DigestState*
 md4(uchar *data, ulong dlen, uchar *digest, DigestState *s)
@@ -790,21 +742,12 @@ md4(uchar *data, ulong dlen, uchar *digest, DigestState *s)
 /* Process list - global variable */
 Procs procs;
 
-void
-closesigs(Skeyset *s)
-{
-	USED(s);
-}
+/* closesigs is in emu/port/proc.c */
 
 /* Root device - rootmaxq defined in emu-g.root.h */
 /* Note: imagmem (Pool*) is defined in alloc.c, not Memimage* */
 
-/* Process creation */
-Proc*
-newproc(void)
-{
-	return nil;
-}
+/* newproc is implemented in emu/port/proc.c */
 
 /* Android pthread compatibility */
 int
@@ -851,14 +794,7 @@ _tas(int *addr)
 /* Signal flag */
 int sflag = 0;
 
-/* Dis VM fault handler - from libinterp */
-void
-disfault(void *f, char *msg)
-{
-	USED(f);
-	USED(msg);
-	longjmp(nil, 1);
-}
+/* disfault is in emu/port/dis.c */
 
 /* Rune binary search */
 Rune*
@@ -988,12 +924,7 @@ mpnew(int n)
 /* DSA primes - stub */
 mpint *DSAprimes[1] = {nil};
 
-/* delrun - delete from run queue */
-void
-delrun(Proc *p)
-{
-	USED(p);
-}
+/* delrun is in emu/port/dis.c */
 
 /* bflag - debug flag */
 int bflag = 0;
@@ -1133,16 +1064,7 @@ showjmpbuf(char *msg)
 	USED(msg);
 }
 
-/* Mount operations */
-Mount*
-newmount(Mhead *h, Chan *chan, int flag, char *spec)
-{
-	USED(h);
-	USED(chan);
-	USED(flag);
-	USED(spec);
-	return nil;
-}
+/* newmount is in emu/port/pgrp.c */
 
 void
 mountfree(Mount *m)
@@ -2957,10 +2879,13 @@ panic(char *fmt, ...)
 }
 
 /*
- * sbrk - grow the data segment
- * Implemented using mmap for Android (POSIX systems)
+ * sbrk - grow the data segment for memory pool allocator
+ * Android doesn't provide sbrk, so we implement it using mmap
+ * This overrides any weak system declaration
  */
-void* sbrk(intptr increment)
+#undef sbrk  /* Undefine any system declaration */
+
+void* sbrk(intptr_t increment)
 {
 	static void* current_brk = NULL;
 	static void* max_brk = NULL;
@@ -2972,13 +2897,14 @@ void* sbrk(intptr increment)
 
 	/* Initialize brk on first call */
 	if (current_brk == NULL) {
-		current_brk = mmap(NULL, 1*1024*1024, PROT_READ|PROT_WRITE,
+		current_brk = mmap(NULL, 16*1024*1024, PROT_READ|PROT_WRITE,
 		                   MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
 		if (current_brk == MAP_FAILED) {
 			pthread_mutex_unlock(&brk_lock);
 			return (void*)-1;
 		}
-		max_brk = (char*)current_brk + 1*1024*1024;
+		max_brk = (char*)current_brk + 16*1024*1024;
+		LOGI("sbrk: initialized heap at %p, max %p", current_brk, max_brk);
 	}
 
 	if (increment == 0) {
@@ -2990,7 +2916,7 @@ void* sbrk(intptr increment)
 	if (increment < 0) {
 		/* shrinking */
 		new_brk = (char*)current_brk + increment;
-		if (new_brk < (char*)max_brk - 1*1024*1024) {
+		if (new_brk < (char*)max_brk - 16*1024*1024) {
 			pthread_mutex_unlock(&brk_lock);
 			return (void*)-1;  /* Can't shrink below original */
 		}
@@ -3005,9 +2931,10 @@ void* sbrk(intptr increment)
 	if (new_brk > max_brk) {
 		/* Need to expand the mapped region */
 		size_t cur_size = (char*)max_brk - (char*)current_brk;
-		size_t new_size = cur_size + increment + 256*1024;  /* Add extra buffer */
+		size_t new_size = cur_size + increment + 1024*1024;  /* Add 1MB buffer */
 		void* new_region = mremap(current_brk, cur_size, new_size, MREMAP_MAYMOVE);
 		if (new_region == MAP_FAILED) {
+			LOGE("sbrk: mremap failed cur=%zu new=%zu", cur_size, new_size);
 			pthread_mutex_unlock(&brk_lock);
 			return (void*)-1;
 		}
@@ -3019,6 +2946,7 @@ void* sbrk(intptr increment)
 		}
 		max_brk = (char*)current_brk + new_size;
 		new_brk = (char*)current_brk + increment;
+		LOGI("sbrk: expanded heap to %zu bytes", new_size);
 	}
 
 	result = current_brk;

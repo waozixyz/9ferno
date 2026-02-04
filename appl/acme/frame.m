@@ -20,6 +20,7 @@ Framem : module {
 		ptr : string;
 		bc : int;		# break char
 		minwid : int;
+		coloridx : int;				# syntax color index (-1 for default TEXT color)
 	};
 
 	Frame : adt {

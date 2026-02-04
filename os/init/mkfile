@@ -6,7 +6,8 @@ OBJ=\
 
 all:V:	$OBJ
 install:V: all
-installall:V: all
+	cp $OBJ $ROOT/dis/
+installall:V: install
 
 clean nuke:V:
 	rm -f *.dis *.sbl
