@@ -1,4 +1,4 @@
-implement Hello;
+implement Testcallback;
 
 include "sys.m";
 include "draw.m";
@@ -10,26 +10,26 @@ draw: Draw;
 tk: Tk;
 tkclient: Tkclient;
 
-Hello: module
+Testcallback: module
 {
     init: fn(ctxt: ref Draw->Context, nil: list of string);
     handleClick: fn();
 };
 
-
 handleClick()
 {
-sys->print("Hello from Kryon!\n");
+    sys->print("Clicked!\n");
 }
 
+tkcmds := array[] of {
+    "button .b -text TestButton -bg #404080 -fg white -command {send cmd handleClick}",
+    "pack .b",
+    "pack propagate . 0",
+    "update"
+};
 
 init(ctxt: ref Draw->Context, nil: list of string)
 {
-    if (ctxt == nil) {
-        sys->fprint(sys->fildes(2), "app: no window context\n");
-        raise "fail:bad context";
-    }
-
     sys = load Sys Sys->PATH;
     draw = load Draw Draw->PATH;
     tk = load Tk Tk->PATH;
@@ -37,19 +37,14 @@ init(ctxt: ref Draw->Context, nil: list of string)
 
     tkclient->init();
 
-    (toplevel, menubut) := tkclient->toplevel(ctxt, "", "Hello World", 0);
+    (toplevel, menubut) := tkclient->toplevel(ctxt, "", "Test Callback", 0);
 
-    tk->cmd(toplevel, ". configure -width 400 -height 300");
-
-    # Build UI
-    tk->cmd(toplevel, ".w0 button -text {Click Me} -fg white -bg #404080 -command {send cmd handleClick}");
-    tk->cmd(toplevel, "pack .w0");
     cmd := chan of string;
     tk->namechan(toplevel, cmd, "cmd");
 
+    for (i := 0; i < len tkcmds; i++)
+        tk->cmd(toplevel, tkcmds[i]);
 
-    tk->cmd(toplevel, "pack propagate . 0");
-    tk->cmd(toplevel, "update");
     tkclient->onscreen(toplevel, nil);
     tkclient->startinput(toplevel, "ptr"::nil);
 

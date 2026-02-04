@@ -519,10 +519,7 @@ frinit(f : ref Frame, r : Rect, ft : ref Font, b : ref Image, cols : array of re
 			break;
 		}
 	}
-	# Initialize syntax colors to default (text color)
-	# These will be set by Text module if syntax highlighting is enabled
-	for(i = 0; i < SYN_NCOL; i++)
-		f.syncols[i] = f.cols[TEXT];
+	# Syntax colors are set by Text.init() - don't reset them here
 	frsetrects(f, r, b);
 	if (f.tick==nil && f.cols[BACK] != nil)
 		frinittick(f);
@@ -643,6 +640,7 @@ bxscan(f : ref Frame, rp : string, l : int, ppt : Point) : (Point, Point)
 			b.ptr = rp[ssp:sp];
 			b.wid = w;
 			b.nrune = nr;
+			b.coloridx = -1;  # Initialize to default color
 			frame.nchars += nr;
 			if (nul) {
 				for (i = 0; i < nr; i++)

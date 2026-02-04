@@ -1,17 +1,18 @@
 <../../mkconfig
 
-# Lua Shell
-
-TARG=	lua.dis
-
-SYSMODULES=\
-	sys.m\
-	draw.m\
-	luavm.m\
-
-MODULES=\
-	lua.b\
+# Commands - build all .b files automatically
 
 DISBIN=$ROOT/dis
 
-<$ROOT/mkfiles/mkdis
+all:V:
+	sh build-all.sh
+
+install:V:	all
+	sh install-all.sh
+
+clean:V:
+	find . -name '*.dis' -delete
+	find . -name '*.sbl' -delete
+
+nuke:V:	clean
+	find $DISBIN -name '*.dis' -delete 2>/dev/null || true

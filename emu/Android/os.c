@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <pwd.h>
 #include <math.h>
+#include <dirent.h>
 
 #include <stdint.h>
 #include <android/log.h>
@@ -185,20 +186,35 @@ osreboot(char *file, char **argv)
 
 /* Note: libinit and emuinit are defined below (Android-specific versions) */
 
-/* Forward declaration - modinit is defined in emu/Android/emu.c */
+/* Forward declarations - module initialization only for now */
 extern void modinit(void);
+extern void opinit(void);
+extern void excinit(void);
 
-/* Emulator initialization - loads the Dis VM modules and starts execution */
+/* Emulator initialization - initializes the Dis VM modules */
 void
 emuinit(void *imod)
 {
 	USED(imod);
 	LOGI("emuinit: TaijiOS emulator starting");
 
-	/* Initialize the module system */
+	/* Initialize operators for Dis VM */
+	opinit();
+	excinit();
+
+	/* Initialize all modules */
 	modinit();
 
+	/* TODO: Load and execute init module (requires Dis bytecode files)
+	 * For now, we just initialize without loading any code
+	 * The next phase will add:
+	 * 1. Bundle Dis bytecode files with the APK
+	 * 2. Load the init module
+	 * 3. Start the VM execution loop
+	 */
+
 	LOGI("emuinit: Module initialization complete");
+	LOGI("emuinit: No init module loaded yet - waiting for further implementation");
 }
 /*
  * Android: use ADB or logcat for keyboard input
@@ -407,12 +423,10 @@ char** rebootargv = nil;
 /* keepbroken is in emu/port/dis.c */
 char* exdebug = nil;
 
-void
-setid(char *name, int isid)
-{
-	USED(name);
-	USED(isid);
-}
+/* vflag - verbose debug flag, set to 0 for Android (no command line) */
+int vflag = 0;
+
+/* setid is in emu/port/devfs-posix.c */
 
 void
 memldelete(Memimage *m)
@@ -813,13 +827,19 @@ drawlog(char *fmt, ...)
 	va_end(args);
 }
 
-/* Format lock for fmt.c */
-Lock _fmtlock;
+/* _fmtlock, _fmtunlock provided by emu/port/print.c */
 
-void
-_fmtunlock(void)
+/* print function - was in lib9/print.c */
+int
+print(char *fmt, ...)
 {
-	/* Empty unlock for Android */
+	int n;
+	va_list args;
+
+	va_start(args, fmt);
+	n = vfprint(1, fmt, args);
+	va_end(args);
+	return n;
 }
 
 /* isNaN function for math library */
@@ -3017,6 +3037,36 @@ void
 FPinit(void)
 {
 	/* TODO: Initialize ARM64 FP state */
+}
+
+/*
+ * osdisksize - Get disk size for a file descriptor
+ * Android doesn't expose all the Linux ioctls, so return 0
+ */
+vlong
+osdisksize(int fd)
+{
+	USED(fd);
+	/* TODO: Implement for Android using fstatfs if needed */
+	return 0;
+}
+
+/*
+ * seekdir - Set directory position
+ * Android NDK may not provide seekdir, so provide an implementation
+ */
+void
+seekdir(DIR *dirp, long loc)
+{
+	/*
+	 * Simple implementation: close and reopen the directory
+	 * This is not efficient but works for the use case in devfs-posix.c
+	 * which only calls seekdir(dir, 0) to reset to beginning
+	 */
+	if (loc == 0) {
+		rewinddir(dirp);
+	}
+	/* For non-zero positions, we'd need a more complex implementation */
 }
 
 /* Signal handler is system-provided */

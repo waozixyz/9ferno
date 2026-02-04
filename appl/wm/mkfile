@@ -1,16 +1,21 @@
 <../../../mkconfig
 
-# Windowing applications - no wlua for now
-# Will be replaced with generic FFI-based Lua shell
+# Windowing applications
 
-TARG=
+DISBIN=$ROOT/dis/wm
 
-MODULES=
+MODULES=\
+	wm.m\
+	wmsrv.m\
 
-DISBIN=$ROOT/dis
+all:V:
+	sh build-all.sh
 
-install:V:
-	# Nothing to install
+install:V:	all
+	sh install-all.sh
 
 clean:V:
 	rm -f *.dis *.sbl
+
+nuke:V:	clean
+	rm -f $DISBIN/*.dis

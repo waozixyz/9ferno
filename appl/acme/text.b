@@ -1501,8 +1501,10 @@ applysyntax(t : ref Text)
 			continue;
 
 		# Simple keyword matching for now
+		# Strip trailing/leading punctuation for matching
 		word := b.ptr[0:b.nrune];
-		b.coloridx = getsyntaxcolor(word, lang);
+		cleanword := strippunct(word);
+		b.coloridx = getsyntaxcolor(cleanword, lang);
 	}
 }
 
@@ -1528,6 +1530,33 @@ getsyntaxcolor(word : string, lang : string) : int
 		if(ishellkeyword(word)) return Framem->SYN_KWD;
 	}
 	return -1;  # Use default color
+}
+
+# Strip punctuation from word for keyword matching
+strippunct(w : string) : string
+{
+	start := 0;
+	end := len w;
+
+	# Skip leading punctuation
+	while(start < end && (w[start] == '(' || w[start] == ')' || w[start] == '{' || w[start] == '}' ||
+		w[start] == '[' || w[start] == ']' || w[start] == ';' || w[start] == ',' ||
+		w[start] == ':' || w[start] == '.' || w[start] == '=' || w[start] == '+' ||
+		w[start] == '-' || w[start] == '*' || w[start] == '/' || w[start] == '&' ||
+		w[start] == '|' || w[start] == '^' || w[start] == '!' || w[start] == '<' ||
+		w[start] == '>' || w[start] == '~' || w[start] == ' ' || w[start] == '\t'))
+		start++;
+
+	# Skip trailing punctuation
+	while(end > start && (w[end-1] == '(' || w[end-1] == ')' || w[end-1] == '{' || w[end-1] == '}' ||
+		w[end-1] == '[' || w[end-1] == ']' || w[end-1] == ';' || w[end-1] == ',' ||
+		w[end-1] == ':' || w[end-1] == '.' || w[end-1] == '=' || w[end-1] == '+' ||
+		w[end-1] == '-' || w[end-1] == '*' || w[end-1] == '/' || w[end-1] == '&' ||
+		w[end-1] == '|' || w[end-1] == '^' || w[end-1] == '!' || w[end-1] == '<' ||
+		w[end-1] == '>' || w[end-1] == '~' || w[end-1] == ' ' || w[end-1] == '\t'))
+		end--;
+
+	return w[start:end];
 }
 
 # Simple keyword check functions

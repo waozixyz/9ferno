@@ -10,9 +10,6 @@ include "fslib.m";
 	Gatechan, Gatequery, Nilentry, Option,
 	Next, Down, Skip, Quit: import Fslib;
 
-this is a bad idea, i think
-i think walk + filter + setroot is good enough.
-
 types(): string
 {
 	# usage: readfile [-f file] name
@@ -62,9 +59,10 @@ run(nil: ref Draw->Context, report: ref Report,
 
 	(root, file) := pathsplit(path);
 	if(file == nil || file == "." || file == ".."){
-		sys->fprint(sys->fildes(2), "fs: readfile: invalid filename %q\n", fname);
+		sys->fprint(sys->fildes(2), "fs: readfile: invalid filename %q\n", f);
 		return nil;
 	}
+	d := ref Sys->nulldir;
 	d.name = file;
 	v := ref Value.X(chan of (Fsdata, chan of int));
 	spawn readproc(v.i, fd, root, ref d, seekable, report.start("read"));
@@ -84,7 +82,7 @@ readproc(c: Fschan, fd: ref Sys->FD, root: string, d: ref Sys->Dir, seekable: in
 	case <-reply {
 	Down =>
 		sendfile(c, fd, errorc);
-	Skip or
+	Skip |
 	Quit =>
 		quit(errorc);
 	}
@@ -93,22 +91,23 @@ readproc(c: Fschan, fd: ref Sys->FD, root: string, d: ref Sys->Dir, seekable: in
 	quit(errorc);
 }
 
-sendfile(c: Fschan, data: list of array of byte, length: big, errorc: chan of string)
+sendfile(c: Fschan, fd: ref Sys->FD, errorc: chan of string)
 {
 	reply := chan of int;
 	for(;;){
-		buf: array of byte;
+		buf := array[Sys->ATOMICIO] of byte;
+		n: int;
 		if(fd != nil){
-			buf := array[Sys->ATOMICIO] of byte;
-			if((n := sys->read(fd, buf, len buf)) <= 0){
-			if(n < 0)
-				report(errorc, sys->sprint("read error: %r"));
-			c <-= ((nil, nil), reply);
-			if(<-reply == Quit)
-				quit(errorc);
-			return;
+			if((n = sys->read(fd, buf, len buf)) <= 0){
+				if(n < 0)
+					report(errorc, sys->sprint("read error: %r"));
+				c <-= ((nil, nil), reply);
+				if(<-reply == Quit)
+					quit(errorc);
+				return;
+			}
+			c <-= ((nil, buf), reply);
 		}
-		c <-= ((nil, buf), reply);
 		case <-reply {
 		Quit =>
 			quit(errorc);
@@ -137,7 +136,7 @@ pathsplit(p: string): (string, string)
 # dodgy heuristic... avoid, or using the stat-length of pipes and net connections
 isseekable(fd: ref Sys->FD): int
 {
-	(ok, stat) := sys->stat(iob.fd);
+	(ok, stat) := sys->stat(fd);
 	if(ok != -1 && stat.dtype == '|' || stat.dtype == 'I')
 		return 0;
 	return 1;

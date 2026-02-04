@@ -8,7 +8,7 @@ project("taijos-android")
 set(CMAKE_C_STANDARD 11)
 
 # Define Android-specific macros
-add_definitions(-DANDROID -D__ANDROID__ -DUSE_PTHREADS)
+add_definitions(-DANDROID -D__ANDROID__ -DUSE_PTHREADS -DROOT="/")
 
 # Find paths to parent directories
 # From app/src/main/cpp, go up 5 levels to reach TaijiOS root
@@ -49,6 +49,7 @@ set(EMU_PORT_SOURCES
 	${EMU_PORT}/devdraw.c
 	${EMU_PORT}/devdup.c
 	${EMU_PORT}/devenv.c
+	# deveia-posix.c excluded - serial port not needed for Phase 1
 	${EMU_PORT}/devfs-posix.c
 	${EMU_PORT}/devindir.c
 	${EMU_PORT}/devip.c
@@ -66,12 +67,16 @@ set(EMU_PORT_SOURCES
 	${EMU_PORT}/error.c
 	${EMU_PORT}/errstr.c
 	${EMU_PORT}/exception.c
+	# ipif-posix.c excluded - use ipif6-posix instead
+	${EMU_PORT}/ipif6-posix.c
+	${EMU_PORT}/ipaux.c
 	${EMU_PORT}/kproc-pthreads.c
 	${EMU_PORT}/pgrp.c
 	${EMU_PORT}/proc.c
 	${EMU_PORT}/qio.c
 	${EMU_PORT}/random.c
 	${EMU_PORT}/parse.c
+	${EMU_PORT}/print.c
 )
 
 # lib9 source files (basic utilities)
@@ -90,7 +95,7 @@ set(LIB9_SOURCES
 	${LIB9}/utflen.c
 	${LIB9}/utfecpy.c
 	${LIB9}/lock.c
-	${LIB9}/print.c
+	# print.c excluded - _fmtlock provided by emu/port/print.c
 	${LIB9}/snprint.c
 	${LIB9}/sprint.c
 	${LIB9}/fprint.c
@@ -134,7 +139,7 @@ set(LIB9_SOURCES
 	${LIB9}/getwd-posix.c
 	${LIB9}/getuser-posix.c
 	${LIB9}/fmt.c
-	${LIB9}/fltfmt.c
+	# fltfmt.c excluded - _efgfmt provided by emu/port/print.c
 	${LIB9}/fmtrune.c
 	# fmtquote.c needs doquote from elsewhere - exclude for now
 	${LIB9}/seprint.c
@@ -149,6 +154,7 @@ set(EMU_ANDROID_SOURCES
 	${EMU_ANDROID}/os.c
 	${EMU_ANDROID}/emu.c
 	${EMU_ANDROID}/emu-g.c
+	${EMU_ANDROID}/win.c
 	${CMAKE_CURRENT_SOURCE_DIR}/android_test.c
 	# ${EMU_ANDROID}/android_main.c  # Requires android_native_app_glue - add later
 	${EMU_ANDROID}/segflush-arm64.c

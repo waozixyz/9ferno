@@ -206,6 +206,7 @@ init(ctxt : ref Draw->Context, argl : list of string)
 	editm->init(mods);
 	editlog->init(mods);
 	editcmd->init(mods);
+	syntaxm->init();
 
 	utils->debuginit();
 

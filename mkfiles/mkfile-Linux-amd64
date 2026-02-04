@@ -29,7 +29,7 @@ CFLAGS=		-g\
 
 ANSICPP=
 LD=		gcc
-LDFLAGS=
+LDFLAGS=	-Wl,--undefined-version
 
 SYSLIBS=
 

@@ -1,335 +1,315 @@
 /*
- * Android OpenGL ES window system for TaijiOS
- * Replaces X11 with OpenGL ES 3.0 for hardware-accelerated graphics
+ * Android window/graphics implementation for TaijiOS
+ * Uses OpenGL ES for rendering
  */
-
-#include <android/log.h>
-#include <android/native_window.h>
-#include <android/native_activity.h>
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-#include <GLES3/gl3.h>
-#include <GLES3/gl3ext.h>
 
 #include "dat.h"
 #include "fns.h"
 #include "error.h"
-#include "draw.h"
-#include "memdraw.h"
+#include <draw.h>
+#include <memdraw.h>
+#include <cursor.h>
+#include "keyboard.h"
 
-#define LOG_TAG "TaijiOS-WIN"
+#include <android/log.h>
+#include <EGL/egl.h>
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+
+#define LOG_TAG "TaijiOS-Win"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-/*
- * OpenGL ES context structure
- */
-typedef struct {
-	EGLDisplay display;
-	EGLSurface surface;
-	EGLContext context;
-	EGLConfig config;
-	ANativeWindow* window;
-	int width;
-	int height;
-	GLuint framebuffer;
-	GLuint texture;
-	GLuint vao;
-	GLuint vbo;
-	uchar* screen_data;	/* Software framebuffer */
-	int screen_dirty;
-} GLESContext;
+/* Screen dimensions */
+static int screenwidth = 0;
+static int screenheight = 0;
 
-static GLESContext gles_ctx = {0};
+/* Screen data - RGBA format for OpenGL ES */
+static uchar *screendata = nil;
+static int screensize = 0;
 
-/*
- * External references from deveia.c
- */
-extern int32_t android_handle_input_event(struct android_app* app, AInputEvent* event);
+/* OpenGL ES objects */
+static GLuint screenTexture = 0;
+static GLuint shaderProgram = 0;
+static GLuint vertexBuffer = 0;
+static GLuint indexBuffer = 0;
 
-/*
- * Initialize OpenGL ES
- */
-int
-win_init(struct android_app* app)
+/* External references from android_test.c */
+extern EGLDisplay g_display;
+extern EGLSurface g_surface;
+extern EGLContext g_context;
+
+/* Simple vertex shader */
+static const char vertexShaderSrc[] =
+	"attribute vec4 aPosition;\n"
+	"attribute vec2 aTexCoord;\n"
+	"varying vec2 vTexCoord;\n"
+	"void main() {\n"
+	"	gl_Position = aPosition;\n"
+	"	vTexCoord = aTexCoord;\n"
+	"}\n";
+
+/* Simple fragment shader */
+static const char fragmentShaderSrc[] =
+	"precision mediump float;\n"
+	"varying vec2 vTexCoord;\n"
+	"uniform sampler2D uTexture;\n"
+	"void main() {\n"
+	"	gl_FragColor = texture2D(uTexture, vTexCoord);\n"
+	"}\n";
+
+/* Vertex data for fullscreen quad */
+static const float vertices[] = {
+	/* Position (x, y) */  /* TexCoord (u, v) */
+	-1.0f,  1.0f,          0.0f, 0.0f,
+	-1.0f, -1.0f,          0.0f, 1.0f,
+	 1.0f, -1.0f,          1.0f, 1.0f,
+	 1.0f,  1.0f,          1.0f, 0.0f,
+};
+
+static const unsigned short indices[] = {
+	0, 1, 2,
+	0, 2, 3,
+};
+
+/* Shader compilation helper */
+static GLuint compileShader(GLenum type, const char *source)
 {
-	EGLint attribs[] = {
-		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
-		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-		EGL_BLUE_SIZE, 8,
-		EGL_GREEN_SIZE, 8,
-		EGL_RED_SIZE, 8,
-		EGL_ALPHA_SIZE, 8,
-		EGL_DEPTH_SIZE, 16,
-		EGL_STENCIL_SIZE, 8,
-		EGL_NONE
-	};
-	EGLint context_attribs[] = {
-		EGL_CONTEXT_CLIENT_VERSION, 3,
-		EGL_NONE
-	};
-	EGLint format, num_configs;
-	EGLConfig config;
+	GLuint shader = glCreateShader(type);
+	if (shader == 0) {
+		LOGE("glCreateShader failed");
+		return 0;
+	}
 
-	/* Get display */
-	gles_ctx.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-	if(gles_ctx.display == EGL_NO_DISPLAY) {
-		LOGE("eglGetDisplay failed");
+	glShaderSource(shader, 1, &source, NULL);
+	glCompileShader(shader);
+
+	GLint compiled;
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
+	if (!compiled) {
+		GLint infoLen = 0;
+		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen);
+		if (infoLen > 1) {
+			char* infoLog = malloc(infoLen);
+			glGetShaderInfoLog(shader, infoLen, NULL, infoLog);
+			LOGE("Shader compile error: %s", infoLog);
+			free(infoLog);
+		}
+		glDeleteShader(shader);
+		return 0;
+	}
+
+	return shader;
+}
+
+/* Initialize OpenGL ES resources for rendering */
+static int initGLEResources(void)
+{
+	GLuint vertexShader, fragmentShader;
+	GLint linked;
+
+	/* Compile shaders */
+	vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSrc);
+	if (vertexShader == 0)
+		return -1;
+
+	fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSrc);
+	if (fragmentShader == 0) {
+		glDeleteShader(vertexShader);
 		return -1;
 	}
 
-	/* Initialize EGL */
-	if(!eglInitialize(gles_ctx.display, NULL, NULL)) {
-		LOGE("eglInitialize failed");
+	/* Link program */
+	shaderProgram = glCreateProgram();
+	if (shaderProgram == 0) {
+		glDeleteShader(vertexShader);
+		glDeleteShader(fragmentShader);
 		return -1;
 	}
 
-	/* Choose config */
-	if(!eglChooseConfig(gles_ctx.display, attribs, &config, 1, &num_configs) || num_configs < 1) {
-		LOGE("eglChooseConfig failed");
-		return -1;
-	}
-	gles_ctx.config = config;
+	glAttachShader(shaderProgram, vertexShader);
+	glAttachShader(shaderProgram, fragmentShader);
+	glLinkProgram(shaderProgram);
 
-	/* Get native window format */
-	if(!eglGetConfigAttrib(gles_ctx.display, config, EGL_NATIVE_VISUAL_ID, &format)) {
-		LOGE("eglGetConfigAttrib failed");
-		return -1;
-	}
-
-	/* Set window format */
-	ANativeWindow_setBuffersGeometry(app->window, 0, 0, format);
-	gles_ctx.window = app->window;
-
-	/* Create surface */
-	gles_ctx.surface = eglCreateWindowSurface(gles_ctx.display, config, app->window, NULL);
-	if(gles_ctx.surface == EGL_NO_SURFACE) {
-		LOGE("eglCreateWindowSurface failed");
+	glGetProgramiv(shaderProgram, GL_LINK_STATUS, &linked);
+	if (!linked) {
+		GLint infoLen = 0;
+		glGetProgramiv(shaderProgram, GL_INFO_LOG_LENGTH, &infoLen);
+		if (infoLen > 1) {
+			char* infoLog = malloc(infoLen);
+			glGetProgramInfoLog(shaderProgram, infoLen, NULL, infoLog);
+			LOGE("Program link error: %s", infoLog);
+			free(infoLog);
+		}
+		glDeleteProgram(shaderProgram);
+		glDeleteShader(vertexShader);
+		glDeleteShader(fragmentShader);
 		return -1;
 	}
 
-	/* Create context */
-	gles_ctx.context = eglCreateContext(gles_ctx.display, config, EGL_NO_CONTEXT, context_attribs);
-	if(gles_ctx.context == EGL_NO_CONTEXT) {
-		LOGE("eglCreateContext failed");
-		return -1;
-	}
+	glDeleteShader(vertexShader);
+	glDeleteShader(fragmentShader);
 
-	/* Make current */
-	if(!eglMakeCurrent(gles_ctx.display, gles_ctx.surface, gles_ctx.surface, gles_ctx.context)) {
-		LOGE("eglMakeCurrent failed");
-		return -1;
-	}
-
-	/* Get window size */
-	eglQuerySurface(gles_ctx.display, gles_ctx.surface, EGL_WIDTH, &gles_ctx.width);
-	eglQuerySurface(gles_ctx.display, gles_ctx.surface, EGL_HEIGHT, &gles_ctx.height);
-
-	LOGI("OpenGL ES initialized: %dx%d", gles_ctx.width, gles_ctx.height);
-
-	/* Allocate software framebuffer */
-	gles_ctx.screen_data = malloc(gles_ctx.width * gles_ctx.height * 4);
-	if(gles_ctx.screen_data == nil) {
-		LOGE("Failed to allocate framebuffer");
-		return -1;
-	}
-
-	/* Set up GL resources for blitting */
-	glGenVertexArrays(1, &gles_ctx.vao);
-	glGenBuffers(1, &gles_ctx.vbo);
-	glGenTextures(1, &gles_ctx.texture);
-	glGenFramebuffers(1, &gles_ctx.framebuffer);
-
-	/* Set up texture for framebuffer */
-	glBindTexture(GL_TEXTURE_2D, gles_ctx.texture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, gles_ctx.width, gles_ctx.height, 0,
-		GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-	/* Set up VBO for fullscreen quad */
-	float vertices[] = {
-		-1.0f, -1.0f, 0.0f, 0.0f,
-		 1.0f, -1.0f, 1.0f, 0.0f,
-		-1.0f,  1.0f, 0.0f, 1.0f,
-		 1.0f,  1.0f, 1.0f, 1.0f,
-	};
-	glBindBuffer(GL_ARRAY_BUFFER, gles_ctx.vbo);
+	/* Create vertex buffer */
+	glGenBuffers(1, &vertexBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	/* Set viewport */
-	glViewport(0, 0, gles_ctx.width, gles_ctx.height);
+	/* Create index buffer */
+	glGenBuffers(1, &indexBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
-	/* Clear screen */
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
-	eglSwapBuffers(gles_ctx.display, gles_ctx.surface);
+	/* Create texture */
+	glGenTextures(1, &screenTexture);
+	glBindTexture(GL_TEXTURE_2D, screenTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+	LOGI("OpenGL ES resources initialized");
 	return 0;
 }
 
 /*
- * Resize handler
+ * attachscreen - Create the screen buffer
+ * Called by devdraw.c to initialize the screen
+ * Returns pointer to screen data, or nil on failure
+ */
+Memdata*
+attachscreen(Rectangle *r, ulong *chan, int *d, int *width, int *softscreen)
+{
+	static Memdata screendata_struct;
+
+	/* Get screen dimensions from current surface */
+	EGLint w, h;
+
+	if (g_display == EGL_NO_DISPLAY || g_surface == EGL_NO_SURFACE) {
+		LOGE("attachscreen: EGL not initialized");
+		return nil;
+	}
+
+	eglQuerySurface(g_display, g_surface, EGL_WIDTH, &w);
+	eglQuerySurface(g_display, g_surface, EGL_HEIGHT, &h);
+
+	screenwidth = w;
+	screenheight = h;
+
+	LOGI("attachscreen: %dx%d", screenwidth, screenheight);
+
+	/* Set up rectangle */
+	r->min.x = 0;
+	r->min.y = 0;
+	r->max.x = screenwidth;
+	r->max.y = screenheight;
+
+	/* RGBA format */
+	*chan = XRGB32;
+	*d = 32;
+	*width = screenwidth * 4;
+	*softscreen = 0;
+
+	/* Allocate screen buffer (RGBA) */
+	screensize = screenwidth * screenheight * 4;
+	if (screendata == nil) {
+		screendata = malloc(screensize);
+		if (screendata == nil) {
+			LOGE("attachscreen: malloc failed for %d bytes", screensize);
+			return nil;
+		}
+	}
+
+	/* Initialize to black */
+	memset(screendata, 0, screensize);
+
+	/* Set up Memdata structure */
+	screendata_struct.base = nil;  /* No base, will be freed manually */
+	screendata_struct.bdata = screendata;
+	screendata_struct.ref = 1;
+
+	/* Initialize OpenGL ES resources */
+	if (shaderProgram == 0) {
+		initGLEResources();
+	}
+
+	/* Make GL context current */
+	eglMakeCurrent(g_display, g_surface, g_surface, g_context);
+
+	return &screendata_struct;
+}
+
+/*
+ * flushmemscreen - Flush screen rectangle to display
+ * Called by devdraw.c when screen content changes
  */
 void
-win_resize(int width, int height)
+flushmemscreen(Rectangle r)
 {
-	if(width == gles_ctx.width && height == gles_ctx.height)
+	if (screendata == nil || screenTexture == 0)
 		return;
 
-	gles_ctx.width = width;
-	gles_ctx.height = height;
+	/* Make GL context current */
+	eglMakeCurrent(g_display, g_surface, g_surface, g_context);
 
-	/* Reallocate framebuffer */
-	free(gles_ctx.screen_data);
-	gles_ctx.screen_data = malloc(width * height * 4);
+	/* Update texture from screen data */
+	glBindTexture(GL_TEXTURE_2D, screenTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, screenwidth, screenheight,
+	             0, GL_RGBA, GL_UNSIGNED_BYTE, screendata);
 
-	/* Update texture */
-	glBindTexture(GL_TEXTURE_2D, gles_ctx.texture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0,
-		GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	/* Use shader program */
+	glUseProgram(shaderProgram);
 
-	glViewport(0, 0, width, height);
-	LOGI("Window resized: %dx%d", width, height);
+	/* Set up vertex attributes */
+	GLint posAttr = glGetAttribLocation(shaderProgram, "aPosition");
+	GLint texAttr = glGetAttribLocation(shaderProgram, "aTexCoord");
+	GLint texUniform = glGetUniformLocation(shaderProgram, "uTexture");
+
+	glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+	glEnableVertexAttribArray(posAttr);
+	glVertexAttribPointer(posAttr, 2, GL_FLOAT, GL_FALSE, 16, (void*)0);
+	glEnableVertexAttribArray(texAttr);
+	glVertexAttribPointer(texAttr, 2, GL_FLOAT, GL_FALSE, 16, (void*)8);
+
+	/* Set texture uniform */
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, screenTexture);
+	glUniform1i(texUniform, 0);
+
+	/* Draw quad */
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
+
+	/* Swap buffers */
+	eglSwapBuffers(g_display, g_surface);
 }
 
 /*
- * Blit software framebuffer to OpenGL ES texture
- */
-static void
-blit_to_texture(void)
-{
-	glBindTexture(GL_TEXTURE_2D, gles_ctx.texture);
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, gles_ctx.width, gles_ctx.height,
-		GL_RGBA, GL_UNSIGNED_BYTE, gles_ctx.screen_data);
-}
-
-/*
- * Draw fullscreen quad with texture
- */
-static void
-draw_quad(void)
-{
-	GLuint program;
-	GLint pos_loc, tex_loc;
-
-	/* Simple shader program */
-	static const char* vs_src =
-		"#version 300 es\n"
-		"in vec2 pos;\n"
-		"in vec2 texcoord;\n"
-		"out vec2 v_texcoord;\n"
-		"void main() {\n"
-		"	gl_Position = vec4(pos, 0.0, 1.0);\n"
-		"	v_texcoord = texcoord;\n"
-		"}\n";
-
-	static const char* fs_src =
-		"#version 300 es\n"
-		"precision mediump float;\n"
-		"in vec2 v_texcoord;\n"
-		"uniform sampler2D tex;\n"
-		"out vec4 fragColor;\n"
-		"void main() {\n"
-		"	fragColor = texture(tex, v_texcoord);\n"
-		"}\n";
-
-	/* TODO: Compile shaders once at init */
-	GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vs, 1, &vs_src, NULL);
-	glCompileShader(vs);
-
-	GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fs, 1, &fs_src, NULL);
-	glCompileShader(fs);
-
-	program = glCreateProgram();
-	glAttachShader(program, vs);
-	glAttachShader(program, fs);
-	glLinkProgram(program);
-	glUseProgram(program);
-
-	pos_loc = glGetAttribLocation(program, "pos");
-	tex_loc = glGetAttribLocation(program, "texcoord");
-
-	glBindVertexArray(gles_ctx.vao);
-	glBindBuffer(GL_ARRAY_BUFFER, gles_ctx.vbo);
-	glEnableVertexAttribArray(pos_loc);
-	glVertexAttribPointer(pos_loc, 2, GL_FLOAT, GL_FALSE, 16, (void*)0);
-	glEnableVertexAttribArray(tex_loc);
-	glVertexAttribPointer(tex_loc, 2, GL_FLOAT, GL_FALSE, 16, (void*)8);
-
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-	glDeleteShader(vs);
-	glDeleteShader(fs);
-	glDeleteProgram(program);
-}
-
-/*
- * Swap buffers (display)
+ * setcursor - Set mouse cursor (stub for Android)
  */
 void
-win_swap(void)
+setcursor(Cursor *c)
 {
-	if(gles_ctx.screen_dirty) {
-		blit_to_texture();
-		draw_quad();
-		gles_ctx.screen_dirty = 0;
-	}
-	eglSwapBuffers(gles_ctx.display, gles_ctx.surface);
+	USED(c);
+	/* TODO: Implement cursor rendering if needed */
 }
 
 /*
- * Get screen memory for direct drawing
- */
-Memimage*
-win_attach(int color, int width, int height)
-{
-	Memimage *m;
-	Rectangle r;
-
-	r = Rect(0, 0, width, height);
-	m = allocmemimage(r, color);
-	if(m == nil)
-		return nil;
-
-	/* Attach software framebuffer */
-	m->data->base = gles_ctx.screen_data;
-	m->data->bdata = gles_ctx.screen_data;
-
-	return m;
-}
-
-/*
- * Mark screen as dirty (needs redraw)
+ * getcursor - Get mouse cursor (stub for Android)
  */
 void
-win_flush(void)
+getcursor(Cursor *c)
 {
-	gles_ctx.screen_dirty = 1;
+	USED(c);
+	/* TODO: Implement cursor rendering if needed */
 }
 
 /*
- * Cleanup
+ * drawcursor - Draw cursor on screen (stub for Android)
  */
 void
-win_cleanup(void)
+drawcursor(DrawCursor *c)
 {
-	if(gles_ctx.display != EGL_NO_DISPLAY) {
-		eglMakeCurrent(gles_ctx.display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-
-		if(gles_ctx.context != EGL_NO_CONTEXT)
-			eglDestroyContext(gles_ctx.display, gles_ctx.context);
-
-		if(gles_ctx.surface != EGL_NO_SURFACE)
-			eglDestroySurface(gles_ctx.display, gles_ctx.surface);
-
-		eglTerminate(gles_ctx.display);
-	}
-
-	if(gles_ctx.screen_data)
-		free(gles_ctx.screen_data);
-
-	memset(&gles_ctx, 0, sizeof(gles_ctx));
+	USED(c);
+	/* TODO: Implement cursor rendering if needed */
 }

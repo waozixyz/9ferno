@@ -4,6 +4,9 @@ Syntax : module {
 	# Token type constants
 	TKWD, TSTR, TCHR, TNUM, TCOM, TTYPE, TFN, TOP, TPRE, TID : con iota;
 
+	# Initialization
+	init : fn();
+
 	# Language detection
 	detect : fn(filename : string, content : string) : string;
 
