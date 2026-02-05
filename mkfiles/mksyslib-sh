@@ -15,7 +15,8 @@ installall:V:
 		mk $MKFLAGS install
 	done
 
-clean:V:	clean-std	
+clean:V:	clean-std
+	rm -f $LIBRARY	
 
 nuke:V:		nuke-std
 

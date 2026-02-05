@@ -288,24 +288,29 @@ load_and_run_dis_module_from_memory(const char* name, uchar* code, int size)
 
 	/* Use schedmod() to properly schedule the module for execution */
 	/* schedmod() handles all the proper initialization: Modlink, Prog, PC, stack, etc */
+	/* NOTE: newprog() (called by schedmod) already calls addrun(), so we don't need to */
 	Prog* p = schedmod(m);
 	if (!p) {
 		LOGE("load_and_run_dis_module: schedmod failed");
 		return NULL;
 	}
 
-	/* Add the program to the run queue so it can execute */
-	addrun(p);
-	LOGI("load_and_run_dis_module: Process created and added to run queue, pid=%d", p->pid);
+	LOGI("load_and_run_dis_module: Process created (already in run queue), pid=%d", p->pid);
 	return p;
 }
+
+/* Global pointer to the loaded Dis program - accessed by libinit() for osenv initialization
+ * IMPORTANT: This must be initialized BEFORE spawning vmachine, otherwise
+ * vmachine will try to execute programs before their environment is ready.
+ */
+static Prog* loaded_prog = NULL;
 
 /* Emulator initialization - initializes the Dis VM modules */
 void
 emuinit(void *imod)
 {
 	USED(imod);
-	LOGI("emuinit: TaijiOS emulator starting");
+	LOGI("emuinit: ENTRY - TaijiOS emulator starting");
 
 	/* Initialize operators for Dis VM */
 	opinit();
@@ -317,10 +322,10 @@ emuinit(void *imod)
 	LOGI("emuinit: Module initialization complete");
 
 	/* Load and run a simple Dis module from assets */
-	/* For debugging: try testsimple.dis first (has Sys_print calls), then others */
+	/* Try minimal.dis first - the GUI test */
 	static const char* test_modules[] = {
-		"dis/testsimple.dis",  /* Has Sys_print calls that log to Android */
 		"dis/minimal.dis",     /* GUI test with button */
+		"dis/testsimple.dis",  /* Has Sys_print calls that log to Android */
 		"dis/testprint.dis",
 		"dis/testnobox.dis",
 		"dis/testsleep.dis",
@@ -329,7 +334,8 @@ emuinit(void *imod)
 		NULL
 	};
 
-	Prog* loaded_prog = NULL;
+	loaded_prog = NULL;
+	LOGI("emuinit: About to load Dis modules");
 	for (int i = 0; test_modules[i] != NULL && !loaded_prog; i++) {
 		int size;
 		uchar* code = load_dis_from_assets(test_modules[i], &size);
@@ -350,6 +356,7 @@ emuinit(void *imod)
 	if (loaded_prog) {
 		Osenv *o;
 
+		LOGI("emuinit: Initializing environment groups for pid=%d", loaded_prog->pid);
 		/* Initialize the process Osenv for the first Dis process */
 		/* This follows the pattern from emu/port/main.c:281-285 */
 		o = loaded_prog->osenv;
@@ -376,11 +383,16 @@ emuinit(void *imod)
 
 	/* Set idle flag so startup() doesn't block */
 	/* See emu/port/dis.c:915-933 - startup() checks isched.idle */
+	LOGI("emuinit: Setting isched.idle = 1");
 	isched.idle = 1;
 	LOGI("emuinit: Set isched.idle = 1, isched.head=%p, isched.runhd=%p",
 	     isched.head, isched.runhd);
 	if (loaded_prog) {
 		LOGI("emuinit: Process pid=%d state=%d", loaded_prog->pid, loaded_prog->state);
+		Osenv *o = (Osenv*)loaded_prog->osenv;
+		void *pgrp_ptr = o ? o->pgrp : NULL;
+		LOGI("emuinit: loaded_prog=%p, pid=%d, state=%d, osenv->pgrp=%p",
+		     loaded_prog, loaded_prog->pid, loaded_prog->state, pgrp_ptr);
 	}
 	LOGI("emuinit: Returning to libinit");
 }
@@ -3201,6 +3213,7 @@ srvmodinit(void)
 void
 libinit(char *imod)
 {
+	LOGI("libinit: ENTRY - imod=%s", imod ? imod : "NULL");
 	Proc *p;
 	typedef struct Osdep Osdep;
 	struct Osdep {
@@ -3253,6 +3266,9 @@ libinit(char *imod)
 	LOGI("libinit: Calling emuinit");
 	emuinit((void*)imod);  /* emuinit takes void* per fns.h */
 
+	/* emuinit() has now loaded the Dis program and initialized its osenv (pgrp, fgrp, egrp).
+	 * It's now safe to spawn vmachine which will execute the program. */
+
 	/*
 	 * CRITICAL FIX: Spawn vmachine as a kproc using kproc()
 	 *
@@ -3265,7 +3281,17 @@ libinit(char *imod)
 	 *
 	 * Using raw pthread_create doesn't set up 'up' correctly, causing
 	 * NULL pointer crashes when vmachine calls startup().
+	 *
+	 * IMPORTANT: This MUST happen AFTER emuinit() completes, because
+	 * emuinit() initializes the program's osenv (pgrp, fgrp, egrp) which
+	 * is required before vmachine tries to execute the program.
 	 */
+
+	if (loaded_prog) {
+		LOGI("libinit: BEFORE kproc, loaded_prog=%p, pid=%d, state=%d",
+		     loaded_prog, loaded_prog->pid, loaded_prog->state);
+	}
+
 	LOGI("libinit: Spawning vmachine as kproc");
 
 	kproc("dis", vmachine, nil, 0);

@@ -1,6 +1,7 @@
 implement Acme;
 
 include "common.m";
+include "syntax.m";
 
 sys : Sys;
 bufio : Bufio;
@@ -34,9 +35,11 @@ editm: Edit;
 editlog: Editlog;
 editcmd: Editcmd;
 styxaux: Styxaux;
+syntaxmod: Syntax;
 
 sprint : import sys;
 BACK, HIGH, BORD, TEXT, HTEXT, NCOL : import Framem;
+SYN_KWD, SYN_STR, SYN_CHR, SYN_NUM, SYN_COM, SYN_TYPE, SYN_FN, SYN_OP, SYN_PRE, SYN_ID, SYN_NCOL : import Framem;
 Point, Rect, Font, Image, Display, Pointer: import drawm;
 TRUE, FALSE, maxtab : import dat;
 Ref, Reffont, Command, Timer, Lock, Cursor : import dat;
@@ -76,6 +79,7 @@ WPERCOL : con 8;
 
 NSnarf : con 32;
 snarfrune : ref Dat->Astring;
+syncols : array of ref Draw->Image;
 
 init(ctxt : ref Draw->Context, argl : list of string)
 {
@@ -125,6 +129,7 @@ init(ctxt : ref Draw->Context, argl : list of string)
 	editlog = load Editlog path(Editlog->PATH);
 	editcmd = load Editcmd path(Editcmd->PATH);
 	styxaux = load Styxaux path(Styxaux->PATH);
+	syntaxmod = load Syntax Syntax->PATH;
 	
 	mods := ref Dat->Mods(sys, bufio, env, arg, 
 					drawm, styx, styxaux,
@@ -970,9 +975,37 @@ iconinit()
 	textcols = array[NCOL] of ref Draw->Image;
 	textcols[BACK] = display.colormix(Draw->Paleyellow, Draw->White);
 	textcols[HIGH] = display.color(Draw->Darkyellow);
-	textcols[BORD] = display.color(Draw->Yellowgreen); 
+	textcols[BORD] = display.color(Draw->Yellowgreen);
 	textcols[TEXT] = black;
 	textcols[HTEXT] = black;
+
+	# Syntax colors
+	if(syntaxmod != nil) {
+		sys->print("syntaxmod loaded successfully\n");
+		syntaxmod->init();
+		enabled := syntaxmod->enabled();
+		sys->print("syntaxmod->enabled() = %d\n", enabled);
+		if(enabled) {
+			sys->print("Initializing syntax colors...\n");
+			syncols = array[SYN_NCOL] of ref Draw->Image;
+			syncols[SYN_KWD] = display.rgb(16r00, 16r00, 16rFF);      # blue - keywords
+			syncols[SYN_STR] = display.rgb(16r00, 16rAA, 16r00);      # green - strings
+			syncols[SYN_CHR] = display.rgb(16r00, 16rAA, 16r00);      # green - chars
+			syncols[SYN_NUM] = display.rgb(16rB5, 16rCE, 16rA8);      # light green - numbers
+			syncols[SYN_COM] = display.rgb(16r88, 16r88, 16r88);      # gray - comments
+			syncols[SYN_TYPE] = display.rgb(16r4E, 16rC9, 16rB0);     # teal - types
+			syncols[SYN_FN] = display.rgb(16rDC, 16rDC, 16rAA);       # light yellow - functions
+			syncols[SYN_OP] = display.rgb(16rD4, 16rD4, 16rD4);       # light gray - operators
+			syncols[SYN_PRE] = display.rgb(16rC5, 16r86, 16rC0);      # purple - preprocessor
+			syncols[SYN_ID] = black;                                   # black - identifiers
+			dat->syncols = syncols;
+			sys->print("syncols array created, dat->syncols set\n");
+		} else {
+			sys->print("ERROR: syntaxmod->enabled() returned false!\n");
+		}
+	} else {
+		sys->print("ERROR: syntaxmod is nil!\n");
+	}
 
 	if(button != nil)
 		button = modbutton = colbutton = nil;

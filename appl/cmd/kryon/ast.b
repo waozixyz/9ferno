@@ -233,26 +233,38 @@ value_get_string(v: ref Value): string
 {
     if (v == nil || v.valtype != VALUE_STRING)
         return "";
-    return v.String.string_val;
+    pick sv := v {
+    String => return sv.string_val;
+    * => return "";
+    }
 }
 
 value_get_number(v: ref Value): big
 {
     if (v == nil || v.valtype != VALUE_NUMBER)
         return big 0;
-    return v.Number.number_val;
+    pick nv := v {
+    Number => return nv.number_val;
+    * => return big 0;
+    }
 }
 
 value_get_color(v: ref Value): string
 {
     if (v == nil || v.valtype != VALUE_COLOR)
         return "";
-    return v.Color.color_val;
+    pick cv := v {
+    Color => return cv.color_val;
+    * => return "";
+    }
 }
 
 value_get_ident(v: ref Value): string
 {
     if (v == nil || v.valtype != VALUE_IDENTIFIER)
         return "";
-    return v.Identifier.ident_val;
+    pick iv := v {
+    Identifier => return iv.ident_val;
+    * => return "";
+    }
 }

@@ -10,6 +10,7 @@ include "sys.m";
 include "draw.m";
 include "bufio.m";
     bufio: Bufio;
+    Iobuf: import bufio;
 include "ast.m";
     ast: Ast;
 include "lexer.m";
@@ -73,13 +74,15 @@ Codegen: adt {
     tk_cmds: list of string;
     widget_counter: int;
     callbacks: list of (string, string);
+    width: int;
+    height: int;
 
     create: fn(output: ref Sys->FD, module_name: string): ref Codegen;
 };
 
 Codegen.create(output: ref Sys->FD, module_name: string): ref Codegen
 {
-    return ref Codegen(module_name, output, nil, 0, nil);
+    return ref Codegen(module_name, output, nil, 0, nil, 400, 300);
 }
 
 # =========================================================================
@@ -539,8 +542,18 @@ map_property_name(prop_name: string): string
     if (prop_name == "color" || prop_name == "textColor")
         return "fg";
 
-    if (prop_name == "backgroundColor")
+    if (prop_name == "backgroundColor" || prop_name == "background")
         return "bg";
+
+    if (prop_name == "borderWidth")
+        return "borderwidth";
+
+    if (prop_name == "borderColor")
+        return "bordercolor";
+
+    if (prop_name == "posX" || prop_name == "posY" ||
+        prop_name == "contentAlignment")
+        return "";  # Handle separately via pack
 
     return prop_name;
 }
@@ -557,6 +570,14 @@ widget_type_to_tk(typ: int): string
         return "entry";
     Ast->WIDGET_WINDOW =>
         return "toplevel";
+    Ast->WIDGET_CENTER =>
+        return "frame";
+    Ast->WIDGET_COLUMN =>
+        return "frame";
+    Ast->WIDGET_ROW =>
+        return "frame";
+    Ast->WIDGET_CONTAINER =>
+        return "frame";
     * =>
         return "frame";
     }
@@ -607,9 +628,8 @@ generate_widget(cg: ref Codegen, w: ref Widget, parent: string, is_root: int): s
     if (w == nil)
         return nil;
 
-    # Skip wrapper widgets and layout helpers
-    if (w.is_wrapper || w.wtype == Ast->WIDGET_CENTER ||
-        w.wtype == Ast->WIDGET_COLUMN || w.wtype == Ast->WIDGET_ROW) {
+    # Skip wrapper widgets only (keep layout widgets!)
+    if (w.is_wrapper) {
         return generate_widget_list(cg, w.children, parent, is_root);
     }
 
@@ -625,8 +645,10 @@ generate_widget(cg: ref Codegen, w: ref Widget, parent: string, is_root: int): s
 
     # Build widget creation command
     tk_type := widget_type_to_tk(w.wtype);
-    cmd_parts: list of string = nil;
-    cmd_parts = tk_type :: widget_path :: cmd_parts;
+
+    # Collect properties into a list, then reverse and build command
+    # Each property is stored as [prop_name, value]
+    props_list: list of string = nil;
 
     # Generate properties
     callbacks: list of (string, string) = nil;
@@ -650,31 +672,46 @@ generate_widget(cg: ref Codegen, w: ref Widget, parent: string, is_root: int): s
             } else {
                 # Regular property
                 tk_prop := map_property_name(prop.name);
-                val_str := value_to_tk(prop.value);
-                prop_cmd := sys->sprint("-%s", tk_prop);
-                cmd_parts = prop_cmd :: cmd_parts;
-                cmd_parts = val_str :: cmd_parts;
+
+                # Skip properties that don't map to valid Tk options
+                if (tk_prop != "") {
+                    val_str := value_to_tk(prop.value);
+                    prop_cmd := sys->sprint("-%s", tk_prop);
+                    # Prepend to list (will be reversed later)
+                    props_list = val_str :: prop_cmd :: props_list;
+                }
             }
         } else {
             # Regular property
             tk_prop := map_property_name(prop.name);
-            val_str := value_to_tk(prop.value);
-            prop_cmd := sys->sprint("-%s", tk_prop);
-            cmd_parts = prop_cmd :: cmd_parts;
-            cmd_parts = val_str :: cmd_parts;
+
+            # Skip properties that don't map to valid Tk options
+            if (tk_prop != "") {
+                val_str := value_to_tk(prop.value);
+                prop_cmd := sys->sprint("-%s", tk_prop);
+                # Prepend to list (will be reversed later)
+                props_list = val_str :: prop_cmd :: props_list;
+            }
         }
 
         prop = prop.next;
     }
 
-    # Reverse and join command parts
-    cmd := "";
-    parts := cmd_parts;
-    while (parts != nil) {
-        if (cmd != nil)
-            cmd += " ";
-        cmd += hd parts;
-        parts = tl parts;
+    # Reverse props_list to get correct order
+    # Currently: [val2, -prop2, val1, -prop1]
+    # After reverse: [-prop1, val1, -prop2, val2]
+    rev_props: list of string = nil;
+    while (props_list != nil) {
+        rev_props = hd props_list :: rev_props;
+        props_list = tl props_list;
+    }
+
+    # Build command string: "type path -prop1 val1 -prop2 val2 ..."
+    cmd := sys->sprint("%s %s", tk_type, widget_path);
+
+    while (rev_props != nil) {
+        cmd += " " + hd rev_props;
+        rev_props = tl rev_props;
     }
 
     append_tk_cmd(cg, cmd);
@@ -686,8 +723,25 @@ generate_widget(cg: ref Codegen, w: ref Widget, parent: string, is_root: int): s
             return err;
     }
 
-    # Pack widget into parent AFTER children are packed
-    pack_cmd := sys->sprint("pack %s", widget_path);
+    # Generate pack command with layout options
+    pack_opts := "";
+
+    # Check if parent has layout properties
+    # For layout widgets, use their type to determine pack options
+    if (w.wtype == Ast->WIDGET_CENTER) {
+        pack_opts = "-anchor center";
+    } else if (w.wtype == Ast->WIDGET_COLUMN) {
+        pack_opts = "-side top -fill x";
+    } else if (w.wtype == Ast->WIDGET_ROW) {
+        pack_opts = "-side left -fill y";
+    }
+
+    # Add -fill both -expand 1 to make widgets expand to fill available space
+    pack_cmd := "";
+    if (pack_opts != nil && pack_opts != "")
+        pack_cmd = sys->sprint("pack %s %s -fill both -expand 1", widget_path, pack_opts);
+    else
+        pack_cmd = sys->sprint("pack %s -fill both -expand 1", widget_path);
     append_tk_cmd(cg, pack_cmd);
 
     # Store callbacks for later
@@ -720,6 +774,7 @@ generate_widget_list(cg: ref Codegen, w: ref Widget, parent: string, is_root: in
                 child = child.next;
             }
         } else {
+            # Generate widget normally (including layout widgets like Center/Column/Row)
             err := generate_widget(cg, w, parent, is_root);
             if (err != nil)
                 return err;
@@ -888,7 +943,7 @@ generate_code_blocks(cg: ref Codegen, prog: ref Program): string
                     body_start++;
 
                 if (rbrace - 1 > body_start) {
-                    body_end := rbrace - 1;
+                    body_end := rbrace - 2;
                     while (body_end > body_start &&
                            (code[body_end] == '\n' || code[body_end] == ' ' || code[body_end] == '\t'))
                         body_end--;
@@ -947,7 +1002,8 @@ generate_tkcmds_array(cg: ref Codegen): string
         rev = tl rev;
     }
 
-    sys->fprint(cg.output, "    \"pack propagate . 0\",\n");
+    # Let Tk auto-size the window to fit content
+    # Removed wm geometry and pack propagate - they prevented proper window sizing
     sys->fprint(cg.output, "    \"update\"\n");
     sys->fprint(cg.output, "};\n\n");
 
@@ -1020,7 +1076,11 @@ generate_init(cg: ref Codegen, prog: ref Program): string
             height = h;
     }
 
-    sys->fprint(cg.output, "    (toplevel, menubut) := tkclient->toplevel(ctxt, \"\", \"%s\", 0);\n\n", title);
+    # Store width and height in Codegen for later use
+    cg.width = width;
+    cg.height = height;
+
+    sys->fprint(cg.output, "    (toplevel, menubut) := tkclient->toplevel(ctxt, nil, \"%s\", 0);\n\n", title);
 
     # Create command channel if we have callbacks
     has_callbacks := (cg.callbacks != nil);
@@ -1130,8 +1190,9 @@ generate(output: string, prog: ref Program, module_name: string): string
 # Show usage message
 show_usage()
 {
-    sys->fprint(sys->fildes(2), "Usage: kryon [-o output] input.kry\n");
+    sys->fprint(sys->fildes(2), "Usage: kryon [run] [-o output] input.kry\n");
     sys->fprint(sys->fildes(2), "\nOptions:\n");
+    sys->fprint(sys->fildes(2), "  run          Generate .b, compile to .dis, and run\n");
     sys->fprint(sys->fildes(2), "  -o <output>  Specify output file (default: input.b)\n");
     sys->fprint(sys->fildes(2), "  -h           Show this help message\n");
     sys->fprint(sys->fildes(2), "\nNote: input.kry must be a valid path to an existing file\n");
@@ -1168,7 +1229,7 @@ derive_module_name(input_file: string): string
         if (first >= 'a' && first <= 'z') {
             # Capitalize
             c := first - ('a' - 'A');
-            module_name = string c + module_name[1:];
+            module_name = sys->sprint("%c", c) + module_name[1:];
         }
     }
 
@@ -1198,30 +1259,17 @@ derive_output_file(input_file: string): string
 # Read entire file into string
 read_file(path: string): (string, string)
 {
-    fd := sys->open(path, Sys->OREAD);
-    if (fd == nil)
+    iobuf := bufio->open(path, bufio->OREAD);
+    if (iobuf == nil)
         return (nil, sys->sprint("cannot open file: %s: %r", path));
 
-    # Get file size
-    (ok, stat) := sys->fstat(fd);
-    if (!ok) {
-        fd = nil;
-        return (nil, sys->sprint("cannot stat file: %s: %r", path));
+    # Read all lines and join them
+    data := "";
+    while ((s := iobuf.gets('\n')) != nil) {
+        data += s;
     }
 
-    size := int stat.length;
-    buf := array[size] of byte;
-
-    n := sys->read(fd, buf, len buf);
-    if (n < 0) {
-        return (nil, sys->sprint("error reading file: %s", path));
-    }
-
-    fd = nil;
-
-    # Convert bytes to string
-    data := string buf[0:n];
-
+    iobuf.close();
     return (data, nil);
 }
 
@@ -1273,11 +1321,12 @@ init(ctxt: ref Draw->Context, argv: list of string)
     bufio = load Bufio Bufio->PATH;
 
     # Load dependent modules (use dis file paths)
-    ast = load Ast "./ast.dis";
-    lexer = load Lexer "./lexer.dis";
+    ast = load Ast "/dis/ast.dis";
+    lexer = load Lexer "/dis/lexer.dis";
 
     # Parse arguments
     (input, output, err) := parse_args(argv);
+    run_mode := 0;  # Not implemented yet
 
     if (err != nil) {
         if (err == "success:help")
@@ -1325,4 +1374,20 @@ init(ctxt: ref Draw->Context, argv: list of string)
     }
 
     sys->print("Successfully generated %s\n", output);
+
+    # Run mode: show commands to compile and run
+    if (run_mode) {
+        # Derive .dis filename
+        dis_file := output;
+        dot := len dis_file - 1;
+        while (dot >= 0 && dis_file[dot] != '.')
+            dot--;
+        if (dot > 0)
+            dis_file = dis_file[0:dot] + ".dis";
+        else
+            dis_file = dis_file + ".dis";
+
+        sys->print("\nTo compile: limbo -o %s %s\n", dis_file, output);
+        sys->print("To run: %s\n", dis_file);
+    }
 }

@@ -365,7 +365,7 @@ OP(frame)
 	f = (Frame*)R.SP;
 	R.SP  = nsp;
 	f->t  = t;
-	f->mr = R.M;
+	f->mr = nil;
 	DBG("frame frame 0x%p t 0x%p t->size %d R.SP 0x%p\n",
 		f, t, t->size, R.SP);
 	if (t->np)
@@ -406,7 +406,7 @@ OP(mframe)
 	f = (Frame*)R.SP;
 	R.SP = nsp;
 	f->t = t;
-	f->mr = R.M;
+	f->mr = nil;
 	DBG("\t\tmframe frame 0x%p t 0x%p t->size %d R.SP 0x%p\n",
 		f, t, t->size, R.SP);
 	if (t->np)

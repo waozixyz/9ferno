@@ -10,10 +10,8 @@
 #include <android/log.h>
 #define LOG_TAG "TaijiOS-dis"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #else
 #define LOGI(...)
-#define LOGE(...)
 #endif
 
 #define DP if(1){}else print
@@ -454,10 +452,7 @@ killprog(Prog *p, char *cause)
 
 	propex(p, "killed");
 
-	if(p->R.M != nil && p->R.M != H && p->R.M->m != nil)
-		snprint(msg, sizeof(msg), "%d \"%s\":%s", p->pid, p->R.M->m->name, cause);
-	else
-		snprint(msg, sizeof(msg), "%d \"<unknown>\":%s", p->pid, cause);
+	snprint(msg, sizeof(msg), "%d \"%s\":%s", p->pid, p->R.M->m->name, cause);
 
 	p->state = Pexiting;
 	gclock();
@@ -656,7 +651,6 @@ addprog(Proc *p)
 	n = malloc(sizeof(Prog));
 	if(n == nil)
 		panic("no memory");
-	memset(n, 0, sizeof(Prog));
 	p->prog = n;
 	n->osenv = p->env;
 }
@@ -1099,23 +1093,6 @@ vmachine(void *a)
 
 		r = isched.runhd;
 		if(r != nil) {
-			/* Sanity check for corrupted program structure */
-			if(r->state != Pready && r->state != Prelease && r->state != Palt && r->state != Psend && r->state != Precv && r->state != Pdebug && r->state != Pexiting && r->state != Pbroken) {
-				/* Program state is corrupted, skip it and remove from queue */
-				LOGE("vmachine: Corrupted program pid=%d state=%d, removing from queue", r->pid, r->state);
-				isched.runhd = r->link;
-				if(isched.runhd == nil)
-					isched.runtl = nil;
-				continue;
-			}
-			if(r->xec == nil || r->R.M == nil) {
-				/* Program is not properly initialized */
-				LOGE("vmachine: Uninitialized program pid=%d xec=%p R.M=%p, removing", r->pid, r->xec, r->R.M);
-				isched.runhd = r->link;
-				if(isched.runhd == nil)
-					isched.runtl = nil;
-				continue;
-			}
 			o = r->osenv;
 			up->env = o;
 

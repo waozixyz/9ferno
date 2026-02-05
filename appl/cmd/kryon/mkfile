@@ -1,6 +1,9 @@
 <$ROOT/mkconfig
 
-TARG=kryon.dis
+TARG=\
+	kryon.dis\
+	ast.dis\
+	lexer.dis\
 
 MODULES=\
 	ast.m\

@@ -80,6 +80,7 @@ skip_whitespace(l: ref LexerObj)
                 # Skip to end of line
                 while (peek_char(l) != -1 && peek_char(l) != '\n')
                     next_char(l);
+                continue;  # Restart loop to get next character
             } else {
                 # Not a comment - the / will be handled by main lexer
                 # Back up by not consuming
@@ -91,12 +92,14 @@ skip_whitespace(l: ref LexerObj)
 
         if (c == ' ' || c == '\t' || c == '\r') {
             next_char(l);
+            continue;  # Restart loop to get next character
         } else if (c == '\n') {
             if (l.in_code_block) {
                 # In code blocks, preserve newlines
                 return;
             }
             next_char(l);
+            continue;  # Restart loop to get next character
         } else {
             break;
         }

@@ -13,7 +13,8 @@ installall:V:
 	for(objtype in $CPUS)
 		mk $MKFLAGS install
 
-clean:V: clean-std	
+clean:V: clean-std
+	rm -f $LIBRARY	
 
 nuke:V:	nuke-std
 
