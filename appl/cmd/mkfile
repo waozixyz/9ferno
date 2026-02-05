@@ -46,11 +46,22 @@ all-sh:V:
 install:V:	install-$SHELLTYPE
 
 install-rc install-nt:V:	all
+	# Install .dis files from current directory
+	for(i in *.dis){
+		@{builtin test -f $i && cp $i $DISBIN/}
+	}
+	# Then recurse into subdirectories
 	for(i in $DIRS){
 		@{builtin cd $i && mk $MKFLAGS install}
 	}
 
 install-sh:V:	all
+	# Install .dis files from current directory
+	for i in *.dis
+	do
+		test -f $i && cp $i $DISBIN/
+	done
+	# Then recurse into subdirectories
 	for i in $DIRS
 	do
 		(cd $i && mk $MKFLAGS install) || test ! -e $i

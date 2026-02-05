@@ -48,7 +48,6 @@ foo:QV:
 all:V:		all-$HOSTMODEL
 clean:V:	clean-$HOSTMODEL
 install:V:	install-$HOSTMODEL
-installall:V:	installall-$HOSTMODEL
 emu:V:	emu/all-$HOSTMODEL
 emuinstall:V:	emu/install-$HOSTMODEL
 emuclean:V:	emu/clean-$HOSTMODEL
@@ -56,10 +55,8 @@ emunuke:V:	emu/nuke-$HOSTMODEL
 # TODO the kernel targets are obsolete(?). definitely need cleanup
 #	mk kernel/pc64-9front tries to build pc64 in os/boot/pc
 kernel:V:	kernel/all-$HOSTMODEL
-kernelall:V:	kernel/all-$HOSTMODEL
 kernelclean:V:	kernel/clean-$HOSTMODEL
 kernelinstall:V:	kernel/install-$HOSTMODEL
-kernelinstallall:V:	kernel/installall-$HOSTMODEL
 kernelnuke:V:	kernel/nuke-$HOSTMODEL
 nuke:V:		nuke-$HOSTMODEL
 

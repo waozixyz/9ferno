@@ -611,8 +611,9 @@ nrand(int n)
 	return (randn>>16) % n;
 }
 
+/* Renamed to p9rand to avoid conflict with Android's rand() in legacy_stdlib_inlines.h */
 int
-rand(void)
+p9rand(void)
 {
 	nrand(1);
 	return randn;

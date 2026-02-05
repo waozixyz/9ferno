@@ -45,9 +45,13 @@ and {ftest -e lib/profile}	{run ./lib/profile}
 
 # kr - compile .kry to .dis and run it
 fn kr {
-    input := $1;
-    base := `{basename $input .kry};
-    @ /dis/kryon.dis $input;
-    @ /dis/limbo.dis $base.b;
-    @ /dis/sh.dis $base.dis;
+    if {~ $#* 0} {
+        echo usage: kr file.kry
+    } {
+        input := $1;
+        base := `{basename $input .kry};
+        @ /dis/kryon.dis $input;
+        @ /dis/limbo.dis $base.b;
+        @ /dis/sh.dis $base.dis;
+    }
 }

@@ -19,7 +19,7 @@ include "lexer.m";
     lexer: Lexer;
 
 # Import useful types from ast
-Program, Widget, Property, Value, ReactiveFunction: import ast;
+Program, Widget, Property, Value, ReactiveFunction, ModuleImport: import ast;
 
 # Import useful types from lexer
 LexerObj, Token: import lexer;
@@ -88,6 +88,13 @@ Codegen.create(output: ref Sys->FD, module_name: string): ref Codegen
     return ref Codegen(module_name, output, nil, 0, nil, 400, 300, nil);
 }
 
+# Module info for code generation
+Module: adt {
+    mod_file: string;  # module file name (e.g., "sys", "draw")
+    var_name: string;  # variable name (e.g., "sys", "draw")
+    type_name: string; # type name (e.g., "Sys", "Draw")
+};
+
 # =========================================================================
 # Parser functions
 # =========================================================================
@@ -97,6 +104,35 @@ fmt_error(p: ref Parser, msg: string): string
 {
     lineno := lexer->get_lineno(p.l);
     return sys->sprint("line %d: %s", lineno, msg);
+}
+
+# Parse a use statement: use module_name [alias]
+parse_use_statement(p: ref Parser): (ref ModuleImport, string)
+{
+    # Expect "use" keyword
+    (use_tok, err1) := p.expect(Lexer->TOKEN_IDENTIFIER);
+    if (err1 != nil) {
+        return (nil, err1);
+    }
+    if (use_tok.string_val != "use") {
+        return (nil, fmt_error(p, "expected 'use' keyword"));
+    }
+
+    # Expect module name
+    (module_tok, err2) := p.expect(Lexer->TOKEN_IDENTIFIER);
+    if (err2 != nil) {
+        return (nil, err2);
+    }
+    module_name := module_tok.string_val;
+
+    # Optional alias
+    alias := "";
+    if (p.peek().toktype == Lexer->TOKEN_IDENTIFIER) {
+        alias_tok := p.next();
+        alias = alias_tok.string_val;
+    }
+
+    return (ast->moduleimport_create(module_name, alias), nil);
 }
 
 # Parse a reactive function declaration: name: fn() = expression every N
@@ -693,6 +729,21 @@ parse_program(p: ref Parser): (ref Program, string)
 {
     prog := ast->program_create();
 
+    # Parse use statements at the top (before code blocks)
+    while (p.peek().toktype == Lexer->TOKEN_IDENTIFIER) {
+        # Peek ahead to check if it's "use"
+        tok := p.peek();
+        if (tok.string_val == "use") {
+            (imp, err) := parse_use_statement(p);
+            if (err != nil) {
+                return (nil, err);
+            }
+            ast->program_add_module_import(prog, imp);
+        } else {
+            break;
+        }
+    }
+
     # Parse optional code blocks
     tok := p.peek();
     if (tok.toktype == Lexer->TOKEN_LIMBO ||
@@ -1261,18 +1312,35 @@ collect_widget_commands(cg: ref Codegen, prog: ref Program): string
     return generate_widget_list(cg, prog.app.body, ".", 1);
 }
 
-# Generate reactive function variables and update functions
-generate_reactive_functions(cg: ref Codegen, prog: ref Program): string
+# Generate reactive function variables only (no functions)
+generate_reactive_vars(cg: ref Codegen, prog: ref Program): string
+{
+    rfns := prog.reactive_fns;
+
+    while (rfns != nil) {
+        name := rfns.name;
+        # Generate module variable for cached value
+        sys->fprint(cg.output, "%s: string;\n", name);
+        rfns = rfns.next;
+    }
+
+    # Add tpid variable for timer process tracking
+    if (has_reactive_functions(prog)) {
+        sys->fprint(cg.output, "tpid: int;\n");
+    }
+
+    sys->fprint(cg.output, "\n");
+    return nil;
+}
+
+# Generate reactive update functions only (no variables)
+generate_reactive_funcs(cg: ref Codegen, prog: ref Program): string
 {
     rfns := prog.reactive_fns;
 
     while (rfns != nil) {
         name := rfns.name;
         expr := rfns.expression;
-        interval := rfns.interval;
-
-        # Generate module variable for cached value
-        sys->fprint(cg.output, "%s: string;\n\n", name);
 
         # Generate update function
         sys->fprint(cg.output, "%s_update()\n", name);
@@ -1293,7 +1361,7 @@ generate_reactive_functions(cg: ref Codegen, prog: ref Program): string
             if (fn_name == name) {
                 tk_prop := map_property_name(prop_name);
                 if (tk_prop != "") {
-                    sys->fprint(cg.output, "    tk->cmd(toplevel, \"%s configure -%s {\"+%s+\"};update\");\n",
+                    sys->fprint(cg.output, "    tk->cmd(t, \"%s configure -%s {\"+%s+\"};update\");\n",
                         widget_path, tk_prop, name);
                 }
             }
@@ -1328,10 +1396,11 @@ generate_reactive_timer(cg: ref Codegen, prog: ref Program): string
         return nil;
 
     # Generate timer function
-    sys->fprint(cg.output, "reactive_timer(tick: chan of int)\n");
+    sys->fprint(cg.output, "timer(c: chan of int)\n");
     sys->fprint(cg.output, "{\n");
+    sys->fprint(cg.output, "    tpid = sys->pctl(0, nil);\n");
     sys->fprint(cg.output, "    for(;;) {\n");
-    sys->fprint(cg.output, "        tick <-= 1;\n");
+    sys->fprint(cg.output, "        c <-= 1;\n");
     sys->fprint(cg.output, "        sys->sleep(%d);\n", min_interval);
     sys->fprint(cg.output, "    }\n");
     sys->fprint(cg.output, "}\n\n");
@@ -1345,6 +1414,39 @@ has_reactive_functions(prog: ref Program): int
     return (prog.reactive_fns != nil);
 }
 
+# Generate module load statements in init
+generate_module_loads(cg: ref Codegen, prog: ref Program): string
+{
+    imports := prog.module_imports;
+
+    while (imports != nil) {
+        module_name := imports.module_name;
+        alias := imports.alias;
+
+        if (alias == nil || alias == "") {
+            alias = module_name;
+        }
+
+        # Generate type name (capitalized)
+        type_name := alias;
+        if (len type_name > 0) {
+            first := type_name[0];
+            if (first >= 'a' && first <= 'z') {
+                type_name = sys->sprint("%c", first - ('a' - 'A')) + type_name[1:];
+            }
+        }
+
+        # Generate load statement
+        # The load path uses the capitalized type name
+        sys->fprint(cg.output, "    %s = load %s %s->PATH;\n",
+            alias, type_name, type_name);
+
+        imports = imports.next;
+    }
+
+    return nil;
+}
+
 # Generate prologue
 generate_prologue(cg: ref Codegen, prog: ref Program): string
 {
@@ -1352,54 +1454,58 @@ generate_prologue(cg: ref Codegen, prog: ref Program): string
 
     buf += sys->sprint("implement %s;\n\n", cg.module_name);
 
-    buf += "include \"sys.m\";\n";
-    buf += "include \"draw.m\";\n";
-    buf += "include \"tk.m\";\n";
-    buf += "include \"tkclient.m\";\n";
+    # Build list of all modules (required + user imports)
+    modules: list of ref Module = nil;
 
-    # Add daytime.m include if reactive functions use it
-    rfns := prog.reactive_fns;
-    while (rfns != nil) {
-        if (rfns.expression != nil && len rfns.expression > 0) {
-            # Check if expression uses "daytime"
-            (nparts, parts_list) := sys->tokenize(rfns.expression, "->");
-            if (nparts > 1) {
-                if (hd parts_list == "daytime") {
-                    buf += "include \"daytime.m\";\n";
-                    break;
-                }
+    # Required modules for Kryon GUI apps
+    modules = ref Module("sys", "sys", "Sys") :: modules;
+    modules = ref Module("draw", "draw", "Draw") :: modules;
+    modules = ref Module("tk", "tk", "Tk") :: modules;
+    modules = ref Module("tkclient", "tkclient", "Tkclient") :: modules;
+
+    # Add user imports from use statements
+    imports := prog.module_imports;
+    while (imports != nil) {
+        module_name := imports.module_name;
+        alias := imports.alias;
+
+        if (alias == nil || alias == "") {
+            alias = module_name;
+        }
+
+        # Capitalize first letter for type name
+        type_name := alias;
+        if (len type_name > 0) {
+            first := type_name[0];
+            if (first >= 'a' && first <= 'z') {
+                type_name = sys->sprint("%c", first - ('a' - 'A')) + type_name[1:];
             }
         }
-        rfns = rfns.next;
+
+        modules = ref Module(module_name, alias, type_name) :: modules;
+        imports = imports.next;
     }
 
-    buf += "\n";
-
-    buf += "sys: Sys;\n";
-    buf += "draw: Draw;\n";
-    buf += "tk: Tk;\n";
-    buf += "tkclient: Tkclient;\n";
-
-    # Add module imports for reactive functions (like daytime)
-    rfn := prog.reactive_fns;
-    while (rfn != nil) {
-        if (rfn.expression != nil && len rfn.expression > 0) {
-            # Check if expression uses "daytime"
-            (nwords, words_list) := sys->tokenize(rfn.expression, " ");
-            if (nwords > 0 && hd words_list == "daytime->time()" ||
-                len rfn.expression > 10 && rfn.expression[0:10] == "daytime->") {
-                buf += "daytime: Daytime;\n";
-                break;
-            }
-        }
-        rfn = rfn.next;
+    # Reverse to get original order
+    rev_modules: list of ref Module = nil;
+    while (modules != nil) {
+        rev_modules = hd modules :: rev_modules;
+        modules = tl modules;
     }
 
-    buf += "\n";
+    # Output all modules with proper formatting
+    mods := rev_modules;
+    while (mods != nil) {
+        m := hd mods;
+        buf += sys->sprint("include \"%s.m\";\n", m.mod_file);
+        buf += sys->sprint("\t%s: %s;\n", m.var_name, m.type_name);
+        buf += "\n";
+        mods = tl mods;
+    }
 
     # Generate module declaration
     buf += sys->sprint("%s: module\n{\n", cg.module_name);
-    buf += "    init: fn(ctxt: ref Draw->Context, nil: list of string);\n";
+    buf += "    init:\tfn(ctxt: ref Draw->Context, argv: list of string);\n";
 
     # Add function signatures from code blocks (excluding reactive functions)
     cb := prog.code_blocks;
@@ -1463,18 +1569,6 @@ generate_prologue(cg: ref Codegen, prog: ref Program): string
             }
         }
         cb = cb.next;
-    }
-
-    # Add reactive function signatures
-    rfns2 := prog.reactive_fns;
-    while (rfns2 != nil) {
-        buf += sys->sprint("    %s_update: fn();\n", rfns2.name);
-        rfns2 = rfns2.next;
-    }
-
-    # Add reactive_timer signature if we have reactive functions
-    if (has_reactive_functions(prog)) {
-        buf += "    reactive_timer: fn(tick: chan of int);\n";
     }
 
     buf += "};\n";
@@ -1685,7 +1779,7 @@ get_number_prop(props: ref Property, name: string): (int, int)
 # Generate init function
 generate_init(cg: ref Codegen, prog: ref Program): string
 {
-    sys->fprint(cg.output, "init(ctxt: ref Draw->Context, nil: list of string)\n");
+    sys->fprint(cg.output, "init(ctxt: ref Draw->Context, argv: list of string)\n");
     sys->fprint(cg.output, "{\n");
 
     sys->fprint(cg.output, "    sys = load Sys Sys->PATH;\n");
@@ -1693,20 +1787,10 @@ generate_init(cg: ref Codegen, prog: ref Program): string
     sys->fprint(cg.output, "    tk = load Tk Tk->PATH;\n");
     sys->fprint(cg.output, "    tkclient = load Tkclient Tkclient->PATH;\n");
 
-    # Load daytime if reactive functions use it
-    rfns := prog.reactive_fns;
-    while (rfns != nil) {
-        if (rfns.expression != nil && len rfns.expression > 0) {
-            # Check if expression uses "daytime"
-            (nparts, parts_list) := sys->tokenize(rfns.expression, "->");
-            if (nparts > 1) {
-                if (hd parts_list == "daytime") {
-                    sys->fprint(cg.output, "    daytime = load Daytime Daytime->PATH;\n");
-                    break;
-                }
-            }
-        }
-        rfns = rfns.next;
+    # Load modules from use statements
+    err := generate_module_loads(cg, prog);
+    if (err != nil) {
+        return err;
     }
 
     sys->fprint(cg.output, "\n");
@@ -1715,9 +1799,9 @@ generate_init(cg: ref Codegen, prog: ref Program): string
 
     # Get app properties
     title := "Application";
-    width := 400;
-    height := 300;
-    bg := "#191919";
+    width := 0;
+    height := 0;
+    bg := "";
 
     if (prog.app != nil && prog.app.props != nil) {
         t := get_string_prop(prog.app.props, "title");
@@ -1727,8 +1811,6 @@ generate_init(cg: ref Codegen, prog: ref Program): string
         bg = get_string_prop(prog.app.props, "background");
         if (bg == nil)
             bg = get_string_prop(prog.app.props, "backgroundColor");
-        if (bg == nil)
-            bg = "#191919";
 
         (w, ok) := get_number_prop(prog.app.props, "width");
         if (ok)
@@ -1743,9 +1825,13 @@ generate_init(cg: ref Codegen, prog: ref Program): string
     cg.width = width;
     cg.height = height;
 
-    sys->fprint(cg.output, "    (toplevel, wmctl) := tkclient->toplevel(ctxt, \"\", \"%s\", 0);\n", title);
-    sys->fprint(cg.output, "    tk->cmd(toplevel, \"wm geometry . %dx%d\");\n", width, height);
-    sys->fprint(cg.output, "    tk->cmd(toplevel, \"configure -background %s\");\n", bg);
+    sys->fprint(cg.output, "    (t, wmctl) := tkclient->toplevel(ctxt, \"\", \"%s\", 0);\n", title);
+    if (width > 0 || height > 0) {
+        sys->fprint(cg.output, "    tk->cmd(t, \"wm geometry . %dx%d\");\n", width, height);
+    }
+    if (bg != nil && bg != "") {
+        sys->fprint(cg.output, "    tk->cmd(t, \"configure -background %s\");\n", bg);
+    }
     sys->fprint(cg.output, "\n");
 
     # Create command channel if we have callbacks
@@ -1753,18 +1839,18 @@ generate_init(cg: ref Codegen, prog: ref Program): string
 
     if (has_callbacks) {
         sys->fprint(cg.output, "    cmd := chan of string;\n");
-        sys->fprint(cg.output, "    tk->namechan(toplevel, cmd, \"cmd\");\n\n");
+        sys->fprint(cg.output, "    tk->namechan(t, cmd, \"cmd\");\n\n");
     }
 
     # Execute tk commands
     sys->fprint(cg.output, "    for (i := 0; i < len tkcmds; i++)\n");
-    sys->fprint(cg.output, "        tk->cmd(toplevel, tkcmds[i]);\n\n");
+    sys->fprint(cg.output, "        tk->cmd(t, tkcmds[i]);\n\n");
 
     # Setup reactive timer if we have reactive functions
     has_reactive := has_reactive_functions(prog);
     if (has_reactive) {
         sys->fprint(cg.output, "    tick := chan of int;\n");
-        sys->fprint(cg.output, "    spawn reactive_timer(tick);\n\n");
+        sys->fprint(cg.output, "    spawn timer(tick);\n\n");
 
         # Call initial reactive update
         rfns := prog.reactive_fns;
@@ -1776,20 +1862,20 @@ generate_init(cg: ref Codegen, prog: ref Program): string
     }
 
     # Show window
-    sys->fprint(cg.output, "    tkclient->onscreen(toplevel, nil);\n");
-    sys->fprint(cg.output, "    tkclient->startinput(toplevel, \"kbd\"::\"ptr\"::nil);\n\n");
+    sys->fprint(cg.output, "    tkclient->onscreen(t, nil);\n");
+    sys->fprint(cg.output, "    tkclient->startinput(t, \"kbd\"::\"ptr\"::nil);\n\n");
 
     if (has_callbacks) {
         sys->fprint(cg.output, "    for(;;) {\n");
         sys->fprint(cg.output, "        alt {\n");
-        sys->fprint(cg.output, "        s := <-toplevel.ctxt.kbd =>\n");
-        sys->fprint(cg.output, "            tk->keyboard(toplevel, s);\n");
-        sys->fprint(cg.output, "        s := <-toplevel.ctxt.ptr =>\n");
-        sys->fprint(cg.output, "            tk->pointer(toplevel, *s);\n");
-        sys->fprint(cg.output, "        c := <-toplevel.ctxt.ctl or\n");
-        sys->fprint(cg.output, "        c = <-toplevel.wreq or\n");
-        sys->fprint(cg.output, "        c = <-wmctl =>\n");
-        sys->fprint(cg.output, "            tkclient->wmctl(toplevel, c);\n");
+        sys->fprint(cg.output, "        s := <-t.ctxt.kbd =>\n");
+        sys->fprint(cg.output, "            tk->keyboard(t, s);\n");
+        sys->fprint(cg.output, "        s := <-t.ctxt.ptr =>\n");
+        sys->fprint(cg.output, "            tk->pointer(t, *s);\n");
+        sys->fprint(cg.output, "        s := <-t.ctxt.ctl or\n");
+        sys->fprint(cg.output, "        s = <-t.wreq or\n");
+        sys->fprint(cg.output, "        s = <-wmctl =>\n");
+        sys->fprint(cg.output, "            tkclient->wmctl(t, s);\n");
         sys->fprint(cg.output, "        s := <-cmd =>\n");
 
         # Generate callback cases
@@ -1816,14 +1902,14 @@ generate_init(cg: ref Codegen, prog: ref Program): string
     } else {
         sys->fprint(cg.output, "    for(;;) {\n");
         sys->fprint(cg.output, "        alt {\n");
-        sys->fprint(cg.output, "        s := <-toplevel.ctxt.kbd =>\n");
-        sys->fprint(cg.output, "            tk->keyboard(toplevel, s);\n");
-        sys->fprint(cg.output, "        s := <-toplevel.ctxt.ptr =>\n");
-        sys->fprint(cg.output, "            tk->pointer(toplevel, *s);\n");
-        sys->fprint(cg.output, "        c := <-toplevel.ctxt.ctl or\n");
-        sys->fprint(cg.output, "        c = <-toplevel.wreq or\n");
-        sys->fprint(cg.output, "        c = <-wmctl =>\n");
-        sys->fprint(cg.output, "            tkclient->wmctl(toplevel, c);\n");
+        sys->fprint(cg.output, "        s := <-t.ctxt.kbd =>\n");
+        sys->fprint(cg.output, "            tk->keyboard(t, s);\n");
+        sys->fprint(cg.output, "        s := <-t.ctxt.ptr =>\n");
+        sys->fprint(cg.output, "            tk->pointer(t, *s);\n");
+        sys->fprint(cg.output, "        s := <-t.ctxt.ctl or\n");
+        sys->fprint(cg.output, "        s = <-t.wreq or\n");
+        sys->fprint(cg.output, "        s = <-wmctl =>\n");
+        sys->fprint(cg.output, "            tkclient->wmctl(t, s);\n");
 
         # Add tick case for reactive functions
         if (has_reactive) {
@@ -1860,33 +1946,30 @@ generate(output: string, prog: ref Program, module_name: string): string
 
     cg := Codegen.create(fd, module_name);
 
-    # Generate code
+    # Generate code in correct order:
+    # 1. Prologue (includes, module declaration)
+    # 2. Module variables (time, tpid)
+    # 3. Collect widget commands (populates reactive_bindings)
+    # 4. Generate tkcmds array
+    # 5. Init function
+    # 6. Reactive update functions
+    # 7. Timer function
+    # 8. User code blocks
+
     err := generate_prologue(cg, prog);
     if (err != nil) {
         fd = nil;
         return err;
     }
 
-    # Generate reactive functions before code blocks (so they're available)
-    err = generate_reactive_functions(cg, prog);
+    # Generate module variables (time, tpid) after module declaration
+    err = generate_reactive_vars(cg, prog);
     if (err != nil) {
         fd = nil;
         return err;
     }
 
-    err = generate_code_blocks(cg, prog);
-    if (err != nil) {
-        fd = nil;
-        return err;
-    }
-
-    # Generate reactive timer after code blocks
-    err = generate_reactive_timer(cg, prog);
-    if (err != nil) {
-        fd = nil;
-        return err;
-    }
-
+    # Collect widget commands to populate reactive_bindings
     err = collect_widget_commands(cg, prog);
     if (err != nil) {
         fd = nil;
@@ -1900,6 +1983,27 @@ generate(output: string, prog: ref Program, module_name: string): string
     }
 
     err = generate_init(cg, prog);
+    if (err != nil) {
+        fd = nil;
+        return err;
+    }
+
+    # Generate reactive update functions after init
+    err = generate_reactive_funcs(cg, prog);
+    if (err != nil) {
+        fd = nil;
+        return err;
+    }
+
+    # Generate timer function
+    err = generate_reactive_timer(cg, prog);
+    if (err != nil) {
+        fd = nil;
+        return err;
+    }
+
+    # Generate user code blocks last
+    err = generate_code_blocks(cg, prog);
     if (err != nil) {
         fd = nil;
         return err;

@@ -450,12 +450,26 @@ wmcontext_is_valid(Wmcontext* wm)
 
 /*
  * Initialize WM subsystem (called at startup)
+ * Creates a default wmcontext for Android so that /dev/wmctx-* devices work
  */
 void
 wm_init(void)
 {
-	LOGI("wm_init: Window Manager subsystem initialized");
-	g_active_wmcontext = nil;
+	Wmcontext* wm;
+
+	LOGI("wm_init: Initializing Window Manager subsystem");
+
+	/* Create a default wmcontext for Android */
+	wm = wmcontext_create(nil);
+	if(wm == nil) {
+		LOGE("wm_init: Failed to create default wmcontext");
+		return;
+	}
+
+	/* Set it as active so input events are routed to it */
+	wmcontext_set_active(wm);
+
+	LOGI("wm_init: Default wmcontext %p created and set as active", wm);
 }
 
 /*
@@ -466,4 +480,53 @@ wm_shutdown(void)
 {
 	LOGI("wm_shutdown: Window Manager subsystem shutting down");
 	g_active_wmcontext = nil;
+}
+
+/*
+ * Process and display images from wmcontext
+ * This should be called regularly from the main event loop
+ * Returns 1 if an image was displayed, 0 otherwise
+ */
+int
+wmcontext_update_display(Wmcontext* wm)
+{
+	Image* img;
+	int display_updated = 0;
+
+	if(wm == nil || wm->closed || wm->images == nil)
+		return 0;
+
+	/* Try to read an image from the queue without blocking */
+	while(qcanread(wm->images)) {
+		Image* img_ptr;
+		long n = qread(wm->images, (char*)&img_ptr, sizeof(Image*));
+		if(n == sizeof(Image*) && img_ptr != nil) {
+			LOGI("wmcontext_update_display: Received image %p", img_ptr);
+			LOGI("  Image rect: (%d,%d)-(%d,%d)",
+			     img_ptr->r.min.x, img_ptr->r.min.y,
+			     img_ptr->r.max.x, img_ptr->r.max.y);
+			LOGI("  Image depth=%d, chan=0x%x", img_ptr->depth, img_ptr->chan);
+
+			/* TODO: Copy image data to screen buffer */
+			/* Image data is stored in Screen->screenimage->data */
+			/* Need to access through the draw device layer */
+
+			display_updated = 1;
+		}
+	}
+
+	return display_updated;
+}
+
+/*
+ * Update display from active wmcontext
+ * Convenience function to call from main loop
+ */
+int
+wm_update_active_display(void)
+{
+	if(g_active_wmcontext != nil) {
+		return wmcontext_update_display(g_active_wmcontext);
+	}
+	return 0;
 }

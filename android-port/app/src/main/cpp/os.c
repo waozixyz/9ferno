@@ -312,19 +312,6 @@ emuinit(void *imod)
 	USED(imod);
 	LOGI("emuinit: ENTRY - TaijiOS emulator starting");
 
-	/* Create wmcontext for /dev/wmctx-* devices */
-	extern void* wmcontext_create(void*);
-	extern void wmcontext_set_active(void*);
-	LOGE("emuinit: *** ABOUT TO CREATE WMCONTEXT ***");
-	void* wm = wmcontext_create(nil);
-	LOGE("emuinit: *** WMCONTEXT CREATE RETURNED %p ***", wm);
-	if(wm != nil) {
-		wmcontext_set_active(wm);
-		LOGE("emuinit: *** CREATED WMCONTEXT %p ***", wm);
-	} else {
-		LOGE("emuinit: *** FAILED TO CREATE WMCONTEXT ***");
-	}
-
 	/* Initialize operators for Dis VM */
 	opinit();
 	excinit();
@@ -335,12 +322,12 @@ emuinit(void *imod)
 	LOGI("emuinit: Module initialization complete");
 
 	/* Load and run a simple Dis module from assets */
-	/* Try clock first - complex Tk program that should draw a clock */
+	/* Try clock first - user requested to test it */
 	static const char* test_modules[] = {
-		"dis/clock.dis",       /* Clock application - complex Tk */
-		"dis/minimal.dis",     /* GUI test with button */
+		"dis/clock.dis",       /* Clock application - user requested */
 		"dis/testsimple.dis",  /* Has Sys_print calls that log to Android */
 		"dis/testload.dis",    /* Minimal Draw module test */
+		"dis/minimal.dis",     /* GUI test with button */
 		"dis/testprint.dis",
 		"dis/testnobox.dis",
 		"dis/testsleep.dis",
@@ -3210,22 +3197,6 @@ init_android_display(void)
 		if(_display) {
 			LOGI("init_android_display: Display initialized at %p", _display);
 			LOGI("init_android_display: Graphics working - waiting for Dis module to draw");
-			__android_log_print(ANDROID_LOG_INFO, "WM_INIT", "=== STEP 1: About to create wmcontext ===");
-
-			/* Create wmcontext for /dev/wmctx-* devices */
-			extern void* wmcontext_create(void*);
-			void* wm = wmcontext_create(nil);
-			__android_log_print(ANDROID_LOG_INFO, "WM_INIT", "=== STEP 2: wmcontext_create returned %p ===", wm);
-
-			if(wm != nil) {
-				extern void wmcontext_set_active(void*);
-				wmcontext_set_active(wm);
-				__android_log_print(ANDROID_LOG_INFO, "WM_INIT", "=== STEP 3: Set wmcontext active ===");
-				LOGI("init_android_display: Created wmcontext %p", wm);
-			} else {
-				__android_log_print(ANDROID_LOG_ERROR, "WM_INIT", "=== STEP 3: FAILED ===");
-				LOGE("init_android_display: Failed to create wmcontext");
-			}
 		} else {
 			LOGE("init_android_display: Failed to initialize display");
 		}
@@ -3246,7 +3217,6 @@ void
 libinit(char *imod)
 {
 	LOGI("libinit: ENTRY - imod=%s", imod ? imod : "NULL");
-	LOGI("libinit: XXX TEST RAW LOG");
 	Proc *p;
 	typedef struct Osdep Osdep;
 	struct Osdep {
@@ -3293,7 +3263,6 @@ libinit(char *imod)
 	 * This fixes a race condition where Dis VM code (e.g., minimal.dis)
 	 * tries to call GUI functions (tkclient->init(), tkclient->toplevel())
 	 * before the display is ready, causing SIGSEGV crashes.
-	 * Note: init_android_display() also creates the wmcontext.
 	 */
 	init_android_display();
 

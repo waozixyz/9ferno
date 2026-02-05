@@ -8,6 +8,7 @@
 #include <android/native_window.h>
 #include <android/looper.h>
 #include <android/input.h>
+#include <android/asset_manager.h>
 #include <EGL/egl.h>
 #include <android_native_app_glue.h>
 
@@ -36,8 +37,14 @@ extern void audio_close(void);
  * Android app state
  */
 struct android_app* g_app = nil;
+AAssetManager* g_asset_manager = NULL;
 static int g_running = 0;
 static int g_surface_ready = 0;
+
+/* Export asset manager for use by os.c */
+AAssetManager* android_get_asset_manager(void) {
+	return g_asset_manager;
+}
 
 /*
  * Command handler from Android
@@ -133,6 +140,10 @@ android_main(struct android_app* state)
 	state->userData = nil;
 	state->onAppCmd = android_handle_cmd;
 	state->onInputEvent = android_handle_input_event;
+
+	/* Get the asset manager for loading Dis bytecode files */
+	g_asset_manager = state->activity->assetManager;
+	LOGI("Asset manager: %p", g_asset_manager);
 
 	LOGI("TaijiOS Android port starting...");
 

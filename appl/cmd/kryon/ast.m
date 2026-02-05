@@ -126,6 +126,13 @@ Ast: module
         next: ref ReactiveBinding;
     };
 
+    # Module import ADT
+    ModuleImport: adt {
+        module_name: string;
+        alias: string;
+        next: ref ModuleImport;
+    };
+
     # Program ADT (root node)
     Program: adt {
         vars: ref VarDecl;
@@ -133,6 +140,7 @@ Ast: module
         components: ref ComponentDef;
         app: ref AppDecl;
         reactive_fns: ref ReactiveFunction;
+        module_imports: ref ModuleImport;
     };
 
     # AST construction functions
@@ -151,6 +159,10 @@ Ast: module
     value_create_fn_call: fn(fn_name: string): ref Value;
     param_create: fn(name: string, typ: string, default_val: string): ref Param;
 
+    # Module import functions
+    moduleimport_create: fn(module_name: string, alias: string): ref ModuleImport;
+    moduleimport_list_add: fn(head: ref ModuleImport, imp: ref ModuleImport): ref ModuleImport;
+
     # Reactive function functions
     reactivefn_create: fn(name: string, expr: string, interval: int): ref ReactiveFunction;
     reactivefn_list_add: fn(head: ref ReactiveFunction, rfn: ref ReactiveFunction): ref ReactiveFunction;
@@ -165,6 +177,7 @@ Ast: module
     program_add_component: fn(prog: ref Program, comp: ref ComponentDef);
     program_set_app: fn(prog: ref Program, app: ref AppDecl);
     program_add_reactive_fn: fn(prog: ref Program, rfn: ref ReactiveFunction);
+    program_add_module_import: fn(prog: ref Program, imp: ref ModuleImport);
 
     # List building functions
     property_list_add: fn(listhd: ref Property, item: ref Property): ref Property;

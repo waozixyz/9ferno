@@ -8,7 +8,7 @@ include "ast.m";
 
 program_create(): ref Program
 {
-    return ref Program (nil, nil, nil, nil, nil);
+    return ref Program (nil, nil, nil, nil, nil, nil);
 }
 
 var_decl_create(name: string, typ: string, init: ref Value): ref VarDecl
@@ -287,6 +287,40 @@ value_get_ident(v: ref Value): string
 value_create_fn_call(fn_name: string): ref Value
 {
     return ref Value.FnCall (Ast->VALUE_FN_CALL, fn_name);
+}
+
+# Module import helper functions
+
+moduleimport_create(module_name: string, alias: string): ref ModuleImport
+{
+    return ref ModuleImport (module_name, alias, nil);
+}
+
+moduleimport_list_add(head: ref ModuleImport, imp: ref ModuleImport): ref ModuleImport
+{
+    if (head == nil)
+        return imp;
+
+    m := head;
+    while (m.next != nil)
+        m = m.next;
+    m.next = imp;
+    return head;
+}
+
+program_add_module_import(prog: ref Program, imp: ref ModuleImport)
+{
+    if (prog == nil || imp == nil)
+        return;
+
+    if (prog.module_imports == nil) {
+        prog.module_imports = imp;
+    } else {
+        m := prog.module_imports;
+        while (m.next != nil)
+            m = m.next;
+        m.next = imp;
+    }
 }
 
 # Reactive function helper functions

@@ -152,4 +152,17 @@ void		wm_init(void);
 /* Cleanup WM subsystem (called at shutdown) */
 void		wm_shutdown(void);
 
+/*
+ * Display Update Functions
+ * Process images from wmcontext and update screen
+ */
+
+/* Update display from wmcontext images queue */
+/* Returns 1 if image was processed, 0 otherwise */
+int		wmcontext_update_display(Wmcontext* wm);
+
+/* Update display from active wmcontext */
+/* Convenience function for main loop */
+int		wm_update_active_display(void);
+
 #endif /* WM_H */
