@@ -462,13 +462,14 @@ wm_init(void)
 	/* Create a default wmcontext for Android */
 	wm = wmcontext_create(nil);
 	if(wm == nil) {
-		LOGE("wm_init: Failed to create default wmcontext");
+		__android_log_print(ANDROID_LOG_ERROR, "TaijiOS", "wm_init: FAILED to create wmcontext");
 		return;
 	}
 
 	/* Set it as active so input events are routed to it */
 	wmcontext_set_active(wm);
 
+	__android_log_print(ANDROID_LOG_INFO, "TaijiOS", "wm_init: SUCCESS wmcontext %p created", wm);
 	LOGI("wm_init: Default wmcontext %p created and set as active", wm);
 }
 

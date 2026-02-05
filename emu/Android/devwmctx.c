@@ -53,6 +53,23 @@ static long	wmctxread(Chan* c, void* a, long n, vlong off);
 static long	wmctxwrite(Chan* c, void* a, long n, vlong off);
 
 /*
+ * Auto-create wmcontext on first access
+ * This ensures /dev/wmctx-* devices work even if wm_init() wasn't called
+ */
+static Wmcontext* ensure_wmcontext(void)
+{
+	Wmcontext* wm = wmcontext_get_active();
+	if(wm == 0) {
+		/* Create a default wmcontext */
+		wm = wmcontext_create(0);
+		if(wm != 0) {
+			wmcontext_set_active(wm);
+		}
+	}
+	return wm;
+}
+
+/*
  * Read keyboard event from active wmcontext
  * Blocks until data is available
  * Returns 4-byte int in little-endian format
@@ -67,10 +84,9 @@ wmctx_kbd_read(Chan* c, void* a, long n, vlong off)
 	USED(c);
 	USED(off);
 
-	/* Get active wmcontext */
-	wm = wmcontext_get_active();
+	/* Ensure wmcontext exists */
+	wm = ensure_wmcontext();
 	if(wm == nil) {
-		LOGE("wmctx_kbd_read: No active wmcontext");
 		return 0;
 	}
 
@@ -113,16 +129,15 @@ wmctx_ptr_read(Chan* c, void* a, long n, vlong off)
 	USED(c);
 	USED(off);
 
-	/* Get active wmcontext */
-	wm = wmcontext_get_active();
-	if(wm == nil) {
-		LOGE("wmctx_ptr_read: No active wmcontext");
+	/* Ensure wmcontext exists */
+	wm = ensure_wmcontext();
+	if(wm == 0) {
 		return 0;
 	}
 
 	/* Read from queue (blocks until data available) */
 	ptr = wmcontext_recv_ptr(wm);
-	if(ptr == nil) {
+	if(ptr == 0) {
 		/* Queue closed or no data */
 		return 0;
 	}
@@ -157,16 +172,15 @@ wmctx_ctl_read(Chan* c, void* a, long n, vlong off)
 	USED(c);
 	USED(off);
 
-	/* Get active wmcontext */
-	wm = wmcontext_get_active();
-	if(wm == nil) {
-		LOGE("wmctx_ctl_read: No active wmcontext");
+	/* Ensure wmcontext exists */
+	wm = ensure_wmcontext();
+	if(wm == 0) {
 		return 0;
 	}
 
 	/* Read from queue (blocks until data available) */
 	msg = wmcontext_recv_ctl(wm);
-	if(msg == nil) {
+	if(msg == 0) {
 		/* Queue closed or no data */
 		return 0;
 	}

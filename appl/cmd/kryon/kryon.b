@@ -1215,7 +1215,7 @@ generate_widget(cg: ref Codegen, w: ref Widget, parent: string, is_root: int): s
 
     # For root widgets (direct children of toplevel), configure their size
     # Root widgets have no parent to give them dimensions, so they need explicit size
-    if (is_root) {
+    if (is_root && cg.width > 0 && cg.height > 0) {
         append_tk_cmd(cg, sys->sprint("%s configure -width %d -height %d", widget_path, cg.width, cg.height));
     }
 
@@ -1342,18 +1342,34 @@ generate_reactive_funcs(cg: ref Codegen, prog: ref Program): string
         name := rfns.name;
         expr := rfns.expression;
 
-        # Generate update function
-        sys->fprint(cg.output, "%s_update()\n", name);
+        # Check if this function has any widget bindings (needs t parameter)
+        needs_t := 0;
+        bindings := cg.reactive_bindings;
+        while (bindings != nil) {
+            (widget_path, prop_name, fn_name) := hd bindings;
+            if (fn_name == name) {
+                needs_t = 1;
+                break;
+            }
+            bindings = tl bindings;
+        }
+
+        # Generate update function signature with or without t parameter
+        if (needs_t) {
+            sys->fprint(cg.output, "%s_update(t: ref Tk->Toplevel)\n", name);
+        } else {
+            sys->fprint(cg.output, "%s_update()\n", name);
+        }
         sys->fprint(cg.output, "{\n");
         sys->fprint(cg.output, "    %s = %s;\n", name, expr);
 
         # Generate widget updates for all bindings
         # Reverse bindings to get correct order
-        bindings := cg.reactive_bindings;
+        all_bindings := cg.reactive_bindings;
         rev_bindings: list of (string, string, string) = nil;
-        while (bindings != nil) {
-            rev_bindings = hd bindings :: rev_bindings;
-            bindings = tl bindings;
+        while (all_bindings != nil) {
+            rev_bindings = hd all_bindings :: rev_bindings;
+            all_bindings = tl all_bindings;
         }
 
         while (rev_bindings != nil) {
@@ -1855,7 +1871,23 @@ generate_init(cg: ref Codegen, prog: ref Program): string
         # Call initial reactive update
         rfns := prog.reactive_fns;
         while (rfns != nil) {
-            sys->fprint(cg.output, "    %s_update();\n", rfns.name);
+            # Check if this function has widget bindings
+            has_bindings := 0;
+            bindings := cg.reactive_bindings;
+            while (bindings != nil) {
+                (widget_path, prop_name, fn_name) := hd bindings;
+                if (fn_name == rfns.name) {
+                    has_bindings = 1;
+                    break;
+                }
+                bindings = tl bindings;
+            }
+
+            if (has_bindings) {
+                sys->fprint(cg.output, "    %s_update(t);\n", rfns.name);
+            } else {
+                sys->fprint(cg.output, "    %s_update();\n", rfns.name);
+            }
             rfns = rfns.next;
         }
         sys->fprint(cg.output, "\n");
@@ -1892,7 +1924,23 @@ generate_init(cg: ref Codegen, prog: ref Program): string
             sys->fprint(cg.output, "        <-tick =>\n");
             rfns := prog.reactive_fns;
             while (rfns != nil) {
-                sys->fprint(cg.output, "            %s_update();\n", rfns.name);
+                # Check if this function has widget bindings
+                has_bindings := 0;
+                bindings := cg.reactive_bindings;
+                while (bindings != nil) {
+                    (widget_path, prop_name, fn_name) := hd bindings;
+                    if (fn_name == rfns.name) {
+                        has_bindings = 1;
+                        break;
+                    }
+                    bindings = tl bindings;
+                }
+
+                if (has_bindings) {
+                    sys->fprint(cg.output, "            %s_update(t);\n", rfns.name);
+                } else {
+                    sys->fprint(cg.output, "            %s_update();\n", rfns.name);
+                }
                 rfns = rfns.next;
             }
         }
@@ -1916,7 +1964,23 @@ generate_init(cg: ref Codegen, prog: ref Program): string
             sys->fprint(cg.output, "        <-tick =>\n");
             rfns := prog.reactive_fns;
             while (rfns != nil) {
-                sys->fprint(cg.output, "            %s_update();\n", rfns.name);
+                # Check if this function has widget bindings
+                has_bindings := 0;
+                bindings := cg.reactive_bindings;
+                while (bindings != nil) {
+                    (widget_path, prop_name, fn_name) := hd bindings;
+                    if (fn_name == rfns.name) {
+                        has_bindings = 1;
+                        break;
+                    }
+                    bindings = tl bindings;
+                }
+
+                if (has_bindings) {
+                    sys->fprint(cg.output, "            %s_update(t);\n", rfns.name);
+                } else {
+                    sys->fprint(cg.output, "            %s_update();\n", rfns.name);
+                }
                 rfns = rfns.next;
             }
         }

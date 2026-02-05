@@ -156,6 +156,7 @@ TARG=\
 	winplace.dis\
 	wmclient.dis\
 	wmlib.dis\
+	wmlib-android.dis\
 	wmsrv.dis\
 	workdir.dis\
 	writegif.dis\
@@ -217,6 +218,7 @@ SYSMODULES= \
 	volume.m\
 	watchvars.m\
 	wmlib.m\
+	wmlib-android.m\
 
 DISBIN=$ROOT/dis/lib
 
