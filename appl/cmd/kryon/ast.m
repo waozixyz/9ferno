@@ -5,13 +5,20 @@ Ast: module
     # Widget type constants
     WIDGET_APP: con 1;
     WIDGET_WINDOW: con 2;
-    WIDGET_CONTAINER: con 3;
+    WIDGET_FRAME: con 3;
     WIDGET_BUTTON: con 4;
-    WIDGET_TEXT: con 5;
-    WIDGET_INPUT: con 6;
-    WIDGET_COLUMN: con 7;
-    WIDGET_ROW: con 8;
-    WIDGET_CENTER: con 9;
+    WIDGET_LABEL: con 5;
+    WIDGET_ENTRY: con 6;
+    WIDGET_CHECKBUTTON: con 7;
+    WIDGET_RADIOBUTTON: con 8;
+    WIDGET_LISTBOX: con 9;
+    WIDGET_CANVAS: con 10;
+    WIDGET_SCALE: con 11;
+    WIDGET_MENUBUTTON: con 12;
+    WIDGET_MESSAGE: con 13;
+    WIDGET_COLUMN: con 14;
+    WIDGET_ROW: con 15;
+    WIDGET_CENTER: con 16;
 
     # Value type constants
     VALUE_STRING: con 1;
@@ -19,6 +26,7 @@ Ast: module
     VALUE_COLOR: con 3;
     VALUE_IDENTIFIER: con 4;
     VALUE_ARRAY: con 5;
+    VALUE_FN_CALL: con 6;
 
     # Code block type constants
     CODE_LIMBO: con 1;
@@ -40,6 +48,8 @@ Ast: module
             ident_val: string;
         Array =>
             array_val: array of ref Value;
+        FnCall =>
+            fn_name: string;
         }
     };
 
@@ -100,12 +110,29 @@ Ast: module
         body: ref Widget;
     };
 
+    # Reactive function ADT
+    ReactiveFunction: adt {
+        name: string;
+        expression: string;
+        interval: int;
+        next: ref ReactiveFunction;
+    };
+
+    # Reactive binding ADT (tracks widget -> reactive function relationships)
+    ReactiveBinding: adt {
+        widget_path: string;
+        property_name: string;
+        fn_name: string;
+        next: ref ReactiveBinding;
+    };
+
     # Program ADT (root node)
     Program: adt {
         vars: ref VarDecl;
         code_blocks: ref CodeBlock;
         components: ref ComponentDef;
         app: ref AppDecl;
+        reactive_fns: ref ReactiveFunction;
     };
 
     # AST construction functions
@@ -121,7 +148,14 @@ Ast: module
     value_create_color: fn(c: string): ref Value;
     value_create_ident: fn(id: string): ref Value;
     value_create_array: fn(items: array of ref Value): ref Value;
+    value_create_fn_call: fn(fn_name: string): ref Value;
     param_create: fn(name: string, typ: string, default_val: string): ref Param;
+
+    # Reactive function functions
+    reactivefn_create: fn(name: string, expr: string, interval: int): ref ReactiveFunction;
+    reactivefn_list_add: fn(head: ref ReactiveFunction, rfn: ref ReactiveFunction): ref ReactiveFunction;
+    reactivebinding_create: fn(widget_path: string, property_name: string, fn_name: string): ref ReactiveBinding;
+    reactivebinding_list_add: fn(head: ref ReactiveBinding, binding: ref ReactiveBinding): ref ReactiveBinding;
 
     # Widget linking functions
     widget_add_child: fn(parent: ref Widget, child: ref Widget);
@@ -130,6 +164,7 @@ Ast: module
     program_add_code_block: fn(prog: ref Program, code: ref CodeBlock);
     program_add_component: fn(prog: ref Program, comp: ref ComponentDef);
     program_set_app: fn(prog: ref Program, app: ref AppDecl);
+    program_add_reactive_fn: fn(prog: ref Program, rfn: ref ReactiveFunction);
 
     # List building functions
     property_list_add: fn(listhd: ref Property, item: ref Property): ref Property;

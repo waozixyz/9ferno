@@ -11,13 +11,15 @@ include "draw.m";
 include "bufio.m";
     bufio: Bufio;
     Iobuf: import bufio;
+include "sh.m";
+    sh: Sh;
 include "ast.m";
     ast: Ast;
 include "lexer.m";
     lexer: Lexer;
 
 # Import useful types from ast
-Program, Widget, Property, Value: import ast;
+Program, Widget, Property, Value, ReactiveFunction: import ast;
 
 # Import useful types from lexer
 LexerObj, Token: import lexer;
@@ -76,13 +78,14 @@ Codegen: adt {
     callbacks: list of (string, string);
     width: int;
     height: int;
+    reactive_bindings: list of (string, string, string);  # (widget_path, property_name, fn_name)
 
     create: fn(output: ref Sys->FD, module_name: string): ref Codegen;
 };
 
 Codegen.create(output: ref Sys->FD, module_name: string): ref Codegen
 {
-    return ref Codegen(module_name, output, nil, 0, nil, 400, 300);
+    return ref Codegen(module_name, output, nil, 0, nil, 400, 300, nil);
 }
 
 # =========================================================================
@@ -96,14 +99,100 @@ fmt_error(p: ref Parser, msg: string): string
     return sys->sprint("line %d: %s", lineno, msg);
 }
 
-# Parse a value (STRING, NUMBER, COLOR, IDENTIFIER)
+# Parse a reactive function declaration: name: fn() = expression every N
+parse_reactive_function(p: ref Parser): (ref ReactiveFunction, string)
+{
+    # Parse name (before ":")
+    (name_tok, err1) := p.expect(Lexer->TOKEN_IDENTIFIER);
+    if (err1 != nil) {
+        return (nil, err1);
+    }
+    name := name_tok.string_val;
+
+    # Expect ":"
+    (tok1, err2) := p.expect(':');
+    if (err2 != nil) {
+        return (nil, fmt_error(p, "expected ':' after reactive function name"));
+    }
+
+    # Expect "fn"
+    (fn_tok, err3) := p.expect(Lexer->TOKEN_IDENTIFIER);
+    if (err3 != nil) {
+        return (nil, err3);
+    }
+    if (fn_tok.string_val != "fn") {
+        return (nil, fmt_error(p, "expected 'fn' keyword"));
+    }
+
+    # Expect "()"
+    (tok2, err4) := p.expect('(');
+    if (err4 != nil) {
+        return (nil, err4);
+    }
+    (tok3, err5) := p.expect(')');
+    if (err5 != nil) {
+        return (nil, err5);
+    }
+
+    # Expect "="
+    (tok4, err6) := p.expect('=');
+    if (err6 != nil) {
+        return (nil, err6);
+    }
+
+    # Parse expression (until "every")
+    expr := "";
+    while (p.peek().toktype != Lexer->TOKEN_EVERY) {
+        tok := p.next();
+
+        # Build expression from tokens
+        if (tok.toktype == Lexer->TOKEN_STRING) {
+            expr += tok.string_val;
+        } else if (tok.toktype == Lexer->TOKEN_IDENTIFIER) {
+            expr += tok.string_val;
+        } else if (tok.toktype == Lexer->TOKEN_NUMBER) {
+            expr += sys->sprint("%bd", tok.number_val);
+        } else if (tok.toktype >= 32 && tok.toktype <= 126) {
+            # Single char token
+            expr += sys->sprint("%c", tok.toktype);
+        }
+
+        # Add space for next token
+        if (p.peek().toktype != Lexer->TOKEN_EVERY) {
+            expr += " ";
+        }
+    }
+
+    # Expect "every"
+    (tok5, err7) := p.expect(Lexer->TOKEN_EVERY);
+    if (err7 != nil) {
+        return (nil, err7);
+    }
+
+    # Parse interval number
+    interval_tok := p.next();
+    if (interval_tok.toktype != Lexer->TOKEN_NUMBER) {
+        return (nil, fmt_error(p, "expected number after 'every'"));
+    }
+    interval := int interval_tok.number_val;
+
+    return (ast->reactivefn_create(name, expr, interval), nil);
+}
+
+# Parse a value (STRING, NUMBER, COLOR, IDENTIFIER, FN_CALL)
 parse_value(p: ref Parser): (ref Value, string)
 {
     tok := p.next();
 
     case tok.toktype {
     Lexer->TOKEN_STRING =>
-        return (ast->value_create_string(tok.string_val), nil);
+        # Check for function call pattern: "name()"
+        s := tok.string_val;
+        if (len s > 2 && s[len s - 1] == ')' && s[len s - 2] == '(') {
+            fn_name := s[0: len s - 2];
+            return (ast->value_create_fn_call(fn_name), nil);
+        }
+        return (ast->value_create_string(s), nil);
 
     Lexer->TOKEN_NUMBER =>
         return (ast->value_create_number(tok.number_val), nil);
@@ -112,7 +201,18 @@ parse_value(p: ref Parser): (ref Value, string)
         return (ast->value_create_color(tok.string_val), nil);
 
     Lexer->TOKEN_IDENTIFIER =>
-        return (ast->value_create_ident(tok.string_val), nil);
+        # Check for function call pattern: name ( )
+        # Peek to see if next tokens are '(' and ')'
+        id_name := tok.string_val;
+        if (p.peek().toktype == '(') {
+            p.next();  # consume '('
+            (close_paren, err) := p.expect(')');
+            if (err != nil) {
+                return (nil, err);
+            }
+            return (ast->value_create_fn_call(id_name), nil);
+        }
+        return (ast->value_create_ident(id_name), nil);
 
     * =>
         return (nil, fmt_error(p, "expected value (string, number, color, or identifier)"));
@@ -158,7 +258,7 @@ parse_widget_body_content(p: ref Parser): (ref Property, ref Widget, string)
         tok := p.peek();
 
         # Check for end of body
-        if (tok.toktype == '}' || tok.toktype == Lexer->TOKEN_EOF) {
+        if (tok.toktype == '}' || tok.toktype == Lexer->TOKEN_ENDINPUT) {
             break;
         }
 
@@ -176,7 +276,7 @@ parse_widget_body_content(p: ref Parser): (ref Property, ref Widget, string)
                 ast->property_list_add(props, prop);
             }
         }
-        # Widget: Window/Container/Button/etc { ... }
+        # Widget: Window/Frame/Button/etc { ... }
         else if (tok.toktype >= Lexer->TOKEN_WINDOW && tok.toktype <= Lexer->TOKEN_CENTER) {
             (child, err2) := parse_widget(p);
             if (err2 != nil) {
@@ -217,7 +317,7 @@ parse_widget_body(p: ref Parser): (ref Widget, string)
     }
 
     # Create a wrapper widget to hold props and children
-    w := ast->widget_create(Ast->WIDGET_CONTAINER);
+    w := ast->widget_create(Ast->WIDGET_FRAME);
     w.props = props;
     w.children = children;
     w.is_wrapper = 1;
@@ -240,14 +340,14 @@ parse_window(p: ref Parser): (ref Widget, string)
     return (w, nil);
 }
 
-parse_container(p: ref Parser): (ref Widget, string)
+parse_frame(p: ref Parser): (ref Widget, string)
 {
     (body, err) := parse_widget_body(p);
     if (err != nil) {
         return (nil, err);
     }
 
-    w := ast->widget_create(Ast->WIDGET_CONTAINER);
+    w := ast->widget_create(Ast->WIDGET_FRAME);
     w.props = body.props;
     w.children = body.children;
 
@@ -268,28 +368,28 @@ parse_button(p: ref Parser): (ref Widget, string)
     return (w, nil);
 }
 
-parse_text(p: ref Parser): (ref Widget, string)
+parse_label(p: ref Parser): (ref Widget, string)
 {
     (body, err) := parse_widget_body(p);
     if (err != nil) {
         return (nil, err);
     }
 
-    w := ast->widget_create(Ast->WIDGET_TEXT);
+    w := ast->widget_create(Ast->WIDGET_LABEL);
     w.props = body.props;
     w.children = body.children;
 
     return (w, nil);
 }
 
-parse_input(p: ref Parser): (ref Widget, string)
+parse_entry(p: ref Parser): (ref Widget, string)
 {
     (body, err) := parse_widget_body(p);
     if (err != nil) {
         return (nil, err);
     }
 
-    w := ast->widget_create(Ast->WIDGET_INPUT);
+    w := ast->widget_create(Ast->WIDGET_ENTRY);
     w.props = body.props;
     w.children = body.children;
 
@@ -338,6 +438,104 @@ parse_center(p: ref Parser): (ref Widget, string)
     return (w, nil);
 }
 
+parse_checkbutton(p: ref Parser): (ref Widget, string)
+{
+    (body, err) := parse_widget_body(p);
+    if (err != nil) {
+        return (nil, err);
+    }
+
+    w := ast->widget_create(Ast->WIDGET_CHECKBUTTON);
+    w.props = body.props;
+    w.children = body.children;
+
+    return (w, nil);
+}
+
+parse_radiobutton(p: ref Parser): (ref Widget, string)
+{
+    (body, err) := parse_widget_body(p);
+    if (err != nil) {
+        return (nil, err);
+    }
+
+    w := ast->widget_create(Ast->WIDGET_RADIOBUTTON);
+    w.props = body.props;
+    w.children = body.children;
+
+    return (w, nil);
+}
+
+parse_listbox(p: ref Parser): (ref Widget, string)
+{
+    (body, err) := parse_widget_body(p);
+    if (err != nil) {
+        return (nil, err);
+    }
+
+    w := ast->widget_create(Ast->WIDGET_LISTBOX);
+    w.props = body.props;
+    w.children = body.children;
+
+    return (w, nil);
+}
+
+parse_canvas(p: ref Parser): (ref Widget, string)
+{
+    (body, err) := parse_widget_body(p);
+    if (err != nil) {
+        return (nil, err);
+    }
+
+    w := ast->widget_create(Ast->WIDGET_CANVAS);
+    w.props = body.props;
+    w.children = body.children;
+
+    return (w, nil);
+}
+
+parse_scale(p: ref Parser): (ref Widget, string)
+{
+    (body, err) := parse_widget_body(p);
+    if (err != nil) {
+        return (nil, err);
+    }
+
+    w := ast->widget_create(Ast->WIDGET_SCALE);
+    w.props = body.props;
+    w.children = body.children;
+
+    return (w, nil);
+}
+
+parse_menubutton(p: ref Parser): (ref Widget, string)
+{
+    (body, err) := parse_widget_body(p);
+    if (err != nil) {
+        return (nil, err);
+    }
+
+    w := ast->widget_create(Ast->WIDGET_MENUBUTTON);
+    w.props = body.props;
+    w.children = body.children;
+
+    return (w, nil);
+}
+
+parse_message(p: ref Parser): (ref Widget, string)
+{
+    (body, err) := parse_widget_body(p);
+    if (err != nil) {
+        return (nil, err);
+    }
+
+    w := ast->widget_create(Ast->WIDGET_MESSAGE);
+    w.props = body.props;
+    w.children = body.children;
+
+    return (w, nil);
+}
+
 # Parse a widget (dispatch based on type)
 parse_widget(p: ref Parser): (ref Widget, string)
 {
@@ -347,17 +545,38 @@ parse_widget(p: ref Parser): (ref Widget, string)
     Lexer->TOKEN_WINDOW =>
         return parse_window(p);
 
-    Lexer->TOKEN_CONTAINER =>
-        return parse_container(p);
+    Lexer->TOKEN_FRAME =>
+        return parse_frame(p);
 
     Lexer->TOKEN_BUTTON =>
         return parse_button(p);
 
-    Lexer->TOKEN_TEXT =>
-        return parse_text(p);
+    Lexer->TOKEN_LABEL =>
+        return parse_label(p);
 
-    Lexer->TOKEN_INPUT =>
-        return parse_input(p);
+    Lexer->TOKEN_ENTRY =>
+        return parse_entry(p);
+
+    Lexer->TOKEN_CHECKBUTTON =>
+        return parse_checkbutton(p);
+
+    Lexer->TOKEN_RADIOBUTTON =>
+        return parse_radiobutton(p);
+
+    Lexer->TOKEN_LISTBOX =>
+        return parse_listbox(p);
+
+    Lexer->TOKEN_CANVAS =>
+        return parse_canvas(p);
+
+    Lexer->TOKEN_SCALE =>
+        return parse_scale(p);
+
+    Lexer->TOKEN_MENUBUTTON =>
+        return parse_menubutton(p);
+
+    Lexer->TOKEN_MESSAGE =>
+        return parse_message(p);
 
     Lexer->TOKEN_COLUMN =>
         return parse_column(p);
@@ -373,7 +592,7 @@ parse_widget(p: ref Parser): (ref Widget, string)
     }
 }
 
-# Parse a single code block
+# Parse a single code block or reactive function
 parse_code_block(p: ref Parser): (ref Ast->CodeBlock, string)
 {
     tok := p.next();
@@ -401,7 +620,7 @@ parse_code_block(p: ref Parser): (ref Ast->CodeBlock, string)
     return (ast->code_block_create(typ, code), nil);
 }
 
-# Parse multiple code blocks
+# Parse multiple code blocks and reactive functions
 parse_code_blocks(p: ref Parser): (ref Ast->CodeBlock, string)
 {
     first: ref Ast->CodeBlock = nil;
@@ -485,6 +704,113 @@ parse_program(p: ref Parser): (ref Program, string)
             return (nil, err);
         }
         prog.code_blocks = code_blocks;
+
+        # Extract reactive functions from @limbo code blocks
+        cb := prog.code_blocks;
+        while (cb != nil) {
+            if (cb.cbtype == Ast->CODE_LIMBO && cb.code != nil) {
+                code := cb.code;
+
+                # Look for reactive function pattern: name: fn() = expr every N
+                (nlines, lines_list) := sys->tokenize(code, "\n");
+                lines := array[nlines] of string;
+                i := 0;
+                for (ll := lines_list; ll != nil; ll = tl ll) {
+                    lines[i++] = hd ll;
+                }
+
+                for (kline := 0; kline < nlines; kline++) {
+                    line := lines[kline];
+
+                    # Check if line contains "every"
+                    (nwords, words_list) := sys->tokenize(line, " ");
+                    if (nwords >= 2) {
+                        # Convert list to array for easier access
+                        words := array[nwords] of string;
+                        j := 0;
+                        for (wl := words_list; wl != nil; wl = tl wl) {
+                            words[j++] = hd wl;
+                        }
+
+                        # Look for "every" keyword
+                        found_every := 0;
+                        for (j = 0; j < nwords; j++) {
+                            if (words[j] == "every") {
+                                found_every = 1;
+                                break;
+                            }
+                        }
+
+                        if (found_every) {
+                            # This is a reactive function declaration
+                            # Parse it manually
+                            # Format: name: fn() = expression every N
+
+                            # Find name (before ":")
+                            colon := 0;
+                            for (k := 0; k < len line; k++) {
+                                if (line[k] == ':') {
+                                    colon = k;
+                                    break;
+                                }
+                            }
+
+                            if (colon > 0) {
+                                name := line[0:colon];
+
+                                # Find "every"
+                                every_pos := 0;
+                                for (k := 0; k < len line; k++) {
+                                    if (k + 5 <= len line &&
+                                        line[k:k+5] == "every") {
+                                        every_pos = k;
+                                        break;
+                                    }
+                                }
+
+                                if (every_pos > 0) {
+                                    # Extract expression (after "=" and before "every")
+                                    eq_pos := colon + 1;
+                                    while (eq_pos < every_pos && line[eq_pos] != '=')
+                                        eq_pos++;
+
+                                    if (eq_pos < every_pos) {
+                                        expr_start := eq_pos + 1;
+                                        while (expr_start < every_pos &&
+                                               (line[expr_start] == ' ' || line[expr_start] == '\t'))
+                                            expr_start++;
+
+                                        expr_end := every_pos - 1;
+                                        while (expr_end > expr_start &&
+                                               (line[expr_end] == ' ' || line[expr_end] == '\t'))
+                                            expr_end--;
+
+                                        expr := line[expr_start:expr_end + 1];
+
+                                        # Extract interval
+                                        interval_str := line[every_pos + 5:];
+                                        while (len interval_str > 0 &&
+                                               (interval_str[0] == ' ' || interval_str[0] == '\t'))
+                                            interval_str = interval_str[1:];
+
+                                        interval := 0;
+                                        (nintv, intv_list) := sys->tokenize(interval_str, " ");
+                                        if (nintv > 0) {
+                                            interval = int big hd intv_list;
+                                        }
+
+                                        # Create reactive function
+                                        rfn := ast->reactivefn_create(name, expr, interval);
+                                        ast->program_add_reactive_fn(prog, rfn);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            cb = cb.next;
+        }
     }
 
     # Parse app declaration
@@ -539,22 +865,32 @@ escape_tk_string(s: string): string
 # Map Kryon property names to Tk property names
 map_property_name(prop_name: string): string
 {
-    if (prop_name == "color" || prop_name == "textColor")
+    # Tk color properties
+    if (prop_name == "fg")
         return "fg";
 
-    if (prop_name == "backgroundColor" || prop_name == "background")
+    if (prop_name == "bg")
         return "bg";
 
-    if (prop_name == "borderWidth")
+    # Label widget uses -label for text (not -text)
+    if (prop_name == "text")
+        return "label";
+
+    # Border properties
+    if (prop_name == "borderwidth")
         return "borderwidth";
 
-    if (prop_name == "borderColor")
+    if (prop_name == "bordercolor")
         return "bordercolor";
 
-    if (prop_name == "posX" || prop_name == "posY" ||
-        prop_name == "contentAlignment")
-        return "";  # Handle separately via pack
+    # Pack options - handled separately via pack command
+    if (prop_name == "fill" || prop_name == "expand" ||
+        prop_name == "side" || prop_name == "weight" ||
+        prop_name == "anchor" || prop_name == "posX" ||
+        prop_name == "posY" || prop_name == "contentAlignment")
+        return "";
 
+    # Widget-specific Tk options - return as-is
     return prop_name;
 }
 
@@ -562,21 +898,35 @@ map_property_name(prop_name: string): string
 widget_type_to_tk(typ: int): string
 {
     case typ {
-    Ast->WIDGET_BUTTON =>
-        return "button";
-    Ast->WIDGET_TEXT =>
-        return "label";
-    Ast->WIDGET_INPUT =>
-        return "entry";
     Ast->WIDGET_WINDOW =>
         return "toplevel";
-    Ast->WIDGET_CENTER =>
+    Ast->WIDGET_FRAME =>
         return "frame";
+    Ast->WIDGET_BUTTON =>
+        return "button";
+    Ast->WIDGET_LABEL =>
+        return "label";
+    Ast->WIDGET_ENTRY =>
+        return "entry";
+    Ast->WIDGET_CHECKBUTTON =>
+        return "checkbutton";
+    Ast->WIDGET_RADIOBUTTON =>
+        return "radiobutton";
+    Ast->WIDGET_LISTBOX =>
+        return "listbox";
+    Ast->WIDGET_CANVAS =>
+        return "canvas";
+    Ast->WIDGET_SCALE =>
+        return "scale";
+    Ast->WIDGET_MENUBUTTON =>
+        return "menubutton";
+    Ast->WIDGET_MESSAGE =>
+        return "message";
     Ast->WIDGET_COLUMN =>
         return "frame";
     Ast->WIDGET_ROW =>
         return "frame";
-    Ast->WIDGET_CONTAINER =>
+    Ast->WIDGET_CENTER =>
         return "frame";
     * =>
         return "frame";
@@ -586,7 +936,8 @@ widget_type_to_tk(typ: int): string
 # Check if a property is a callback (returns event name or nil)
 is_callback_property(prop_name: string): string
 {
-    if (len prop_name >= 2 && prop_name[0:2] == "on")
+    # Callbacks start with "on" (onClick, onChanged, onChecked, etc.)
+    if (len prop_name >= 2 && prop_name[0:1] == "o" && prop_name[1:2] == "n")
         return prop_name;
 
     return nil;
@@ -622,6 +973,12 @@ add_callback(cg: ref Codegen, name: string, event: string)
     cg.callbacks = (name, event) :: cg.callbacks;
 }
 
+# Add a reactive binding to the bindings list
+add_reactive_binding(cg: ref Codegen, widget_path: string, property_name: string, fn_name: string)
+{
+    cg.reactive_bindings = (widget_path, property_name, fn_name) :: cg.reactive_bindings;
+}
+
 # Generate code for a single widget
 generate_widget(cg: ref Codegen, w: ref Widget, parent: string, is_root: int): string
 {
@@ -650,11 +1007,42 @@ generate_widget(cg: ref Codegen, w: ref Widget, parent: string, is_root: int): s
     # Each property is stored as [prop_name, value]
     props_list: list of string = nil;
 
+    # NEW: Extract pack options from properties
+    pack_fill := "";
+    pack_expand := 0;
+    pack_side := "";
+    pack_anchor := "";
+
     # Generate properties
     callbacks: list of (string, string) = nil;
 
     prop := w.props;
     while (prop != nil) {
+        # Check for pack-specific properties first
+        if (prop.name == "fill") {
+            pack_fill = ast->value_get_string(prop.value);
+            prop = prop.next;
+            continue;
+        }
+        if (prop.name == "expand") {
+            s := ast->value_get_string(prop.value);
+            if (s == "1" || s == "true")
+                pack_expand = 1;
+            prop = prop.next;
+            continue;
+        }
+        if (prop.name == "side") {
+            pack_side = ast->value_get_string(prop.value);
+            prop = prop.next;
+            continue;
+        }
+        if (prop.name == "anchor") {
+            pack_anchor = ast->value_get_string(prop.value);
+            prop = prop.next;
+            continue;
+        }
+
+        # Handle callbacks and regular properties
         cb_event := is_callback_property(prop.name);
 
         if (cb_event != nil && prop.value != nil) {
@@ -675,7 +1063,30 @@ generate_widget(cg: ref Codegen, w: ref Widget, parent: string, is_root: int): s
 
                 # Skip properties that don't map to valid Tk options
                 if (tk_prop != "") {
-                    val_str := value_to_tk(prop.value);
+                    # Check if value is a function call (reactive binding)
+                    val_str := "";
+                    if (prop.value != nil && prop.value.valtype == Ast->VALUE_FN_CALL) {
+                        # Extract function name from FnCall value
+                        fn_name := "";
+                        pick fv := prop.value {
+                        FnCall =>
+                            fn_name = fv.fn_name;
+                        * =>
+                            # Fall through to regular handling
+                        }
+
+                        if (fn_name != nil && fn_name != "") {
+                            # Track reactive binding
+                            add_reactive_binding(cg, widget_path, prop.name, fn_name);
+                            # Use placeholder for initial value
+                            val_str = "{}";
+                        } else {
+                            val_str = value_to_tk(prop.value);
+                        }
+                    } else {
+                        val_str = value_to_tk(prop.value);
+                    }
+
                     prop_cmd := sys->sprint("-%s", tk_prop);
                     # Prepend to list (will be reversed later)
                     props_list = val_str :: prop_cmd :: props_list;
@@ -687,7 +1098,30 @@ generate_widget(cg: ref Codegen, w: ref Widget, parent: string, is_root: int): s
 
             # Skip properties that don't map to valid Tk options
             if (tk_prop != "") {
-                val_str := value_to_tk(prop.value);
+                # Check if value is a function call (reactive binding)
+                val_str := "";
+                if (prop.value != nil && prop.value.valtype == Ast->VALUE_FN_CALL) {
+                    # Extract function name from FnCall value
+                    fn_name := "";
+                    pick fv := prop.value {
+                    FnCall =>
+                        fn_name = fv.fn_name;
+                    * =>
+                        # Fall through to regular handling
+                    }
+
+                    if (fn_name != nil && fn_name != "") {
+                        # Track reactive binding
+                        add_reactive_binding(cg, widget_path, prop.name, fn_name);
+                        # Use placeholder for initial value
+                        val_str = "{}";
+                    } else {
+                        val_str = value_to_tk(prop.value);
+                    }
+                } else {
+                    val_str = value_to_tk(prop.value);
+                }
+
                 prop_cmd := sys->sprint("-%s", tk_prop);
                 # Prepend to list (will be reversed later)
                 props_list = val_str :: prop_cmd :: props_list;
@@ -714,7 +1148,25 @@ generate_widget(cg: ref Codegen, w: ref Widget, parent: string, is_root: int): s
         rev_props = tl rev_props;
     }
 
+    # Add callbacks to widget creation command
+    # For Tk, callbacks use -command option
+    # Make a copy for widget command, keep original for dispatcher
+    cbs_for_widget := callbacks;
+    while (cbs_for_widget != nil) {
+        (name, event) := hd cbs_for_widget;
+        # Map Kryon event names to Tk command names
+        # For most widgets, it's just -command
+        cmd += " -command {send cmd " + name + "}";
+        cbs_for_widget = tl cbs_for_widget;
+    }
+
     append_tk_cmd(cg, cmd);
+
+    # For root widgets (direct children of toplevel), configure their size
+    # Root widgets have no parent to give them dimensions, so they need explicit size
+    if (is_root) {
+        append_tk_cmd(cg, sys->sprint("%s configure -width %d -height %d", widget_path, cg.width, cg.height));
+    }
 
     # Process children FIRST (they need to be packed before this widget)
     if (w.children != nil) {
@@ -723,25 +1175,38 @@ generate_widget(cg: ref Codegen, w: ref Widget, parent: string, is_root: int): s
             return err;
     }
 
-    # Generate pack command with layout options
+    # Generate pack command with explicit options
     pack_opts := "";
 
-    # Check if parent has layout properties
-    # For layout widgets, use their type to determine pack options
+    # Layout widget defaults
     if (w.wtype == Ast->WIDGET_CENTER) {
-        pack_opts = "-anchor center";
+        pack_anchor = "center";
     } else if (w.wtype == Ast->WIDGET_COLUMN) {
-        pack_opts = "-side top -fill x";
+        pack_side = "top";
+        pack_fill = "x";
     } else if (w.wtype == Ast->WIDGET_ROW) {
-        pack_opts = "-side left -fill y";
+        pack_side = "left";
+        pack_fill = "y";
     }
 
-    # Add -fill both -expand 1 to make widgets expand to fill available space
-    pack_cmd := "";
-    if (pack_opts != nil && pack_opts != "")
-        pack_cmd = sys->sprint("pack %s %s -fill both -expand 1", widget_path, pack_opts);
-    else
-        pack_cmd = sys->sprint("pack %s -fill both -expand 1", widget_path);
+    # User-specified options override defaults
+    if (pack_side != nil && pack_side != "")
+        pack_opts += " -side " + pack_side;
+    if (pack_fill != nil && pack_fill != "" && pack_fill != "none")
+        pack_opts += " -fill " + pack_fill;
+    if (pack_expand)
+        pack_opts += " -expand 1";
+    if (pack_anchor != nil && pack_anchor != "")
+        pack_opts += " -anchor " + pack_anchor;
+
+    # Default fill behavior if no options specified
+    if (pack_opts == nil || pack_opts == "")
+        pack_opts = " -fill both -expand 1";
+    else if (!pack_expand && (pack_fill == nil || pack_fill == ""))
+        # Add -fill both if not specified and no expand
+        pack_opts += " -fill both -expand 1";
+
+    pack_cmd := sys->sprint("pack %s%s", widget_path, pack_opts);
     append_tk_cmd(cg, pack_cmd);
 
     # Store callbacks for later
@@ -796,6 +1261,90 @@ collect_widget_commands(cg: ref Codegen, prog: ref Program): string
     return generate_widget_list(cg, prog.app.body, ".", 1);
 }
 
+# Generate reactive function variables and update functions
+generate_reactive_functions(cg: ref Codegen, prog: ref Program): string
+{
+    rfns := prog.reactive_fns;
+
+    while (rfns != nil) {
+        name := rfns.name;
+        expr := rfns.expression;
+        interval := rfns.interval;
+
+        # Generate module variable for cached value
+        sys->fprint(cg.output, "%s: string;\n\n", name);
+
+        # Generate update function
+        sys->fprint(cg.output, "%s_update()\n", name);
+        sys->fprint(cg.output, "{\n");
+        sys->fprint(cg.output, "    %s = %s;\n", name, expr);
+
+        # Generate widget updates for all bindings
+        # Reverse bindings to get correct order
+        bindings := cg.reactive_bindings;
+        rev_bindings: list of (string, string, string) = nil;
+        while (bindings != nil) {
+            rev_bindings = hd bindings :: rev_bindings;
+            bindings = tl bindings;
+        }
+
+        while (rev_bindings != nil) {
+            (widget_path, prop_name, fn_name) := hd rev_bindings;
+            if (fn_name == name) {
+                tk_prop := map_property_name(prop_name);
+                if (tk_prop != "") {
+                    sys->fprint(cg.output, "    tk->cmd(toplevel, \"%s configure -%s {\"+%s+\"};update\");\n",
+                        widget_path, tk_prop, name);
+                }
+            }
+            rev_bindings = tl rev_bindings;
+        }
+
+        sys->fprint(cg.output, "}\n\n");
+
+        rfns = rfns.next;
+    }
+
+    return nil;
+}
+
+# Generate reactive timer function
+generate_reactive_timer(cg: ref Codegen, prog: ref Program): string
+{
+    if (prog.reactive_fns == nil)
+        return nil;
+
+    # Find the minimum interval
+    min_interval := 1000000;
+    rfns := prog.reactive_fns;
+
+    while (rfns != nil) {
+        if (rfns.interval > 0 && rfns.interval < min_interval)
+            min_interval = rfns.interval;
+        rfns = rfns.next;
+    }
+
+    if (min_interval >= 1000000)
+        return nil;
+
+    # Generate timer function
+    sys->fprint(cg.output, "reactive_timer(tick: chan of int)\n");
+    sys->fprint(cg.output, "{\n");
+    sys->fprint(cg.output, "    for(;;) {\n");
+    sys->fprint(cg.output, "        tick <-= 1;\n");
+    sys->fprint(cg.output, "        sys->sleep(%d);\n", min_interval);
+    sys->fprint(cg.output, "    }\n");
+    sys->fprint(cg.output, "}\n\n");
+
+    return nil;
+}
+
+# Check if program has reactive functions
+has_reactive_functions(prog: ref Program): int
+{
+    return (prog.reactive_fns != nil);
+}
+
 # Generate prologue
 generate_prologue(cg: ref Codegen, prog: ref Program): string
 {
@@ -806,18 +1355,53 @@ generate_prologue(cg: ref Codegen, prog: ref Program): string
     buf += "include \"sys.m\";\n";
     buf += "include \"draw.m\";\n";
     buf += "include \"tk.m\";\n";
-    buf += "include \"tkclient.m\";\n\n";
+    buf += "include \"tkclient.m\";\n";
+
+    # Add daytime.m include if reactive functions use it
+    rfns := prog.reactive_fns;
+    while (rfns != nil) {
+        if (rfns.expression != nil && len rfns.expression > 0) {
+            # Check if expression uses "daytime"
+            (nparts, parts_list) := sys->tokenize(rfns.expression, "->");
+            if (nparts > 1) {
+                if (hd parts_list == "daytime") {
+                    buf += "include \"daytime.m\";\n";
+                    break;
+                }
+            }
+        }
+        rfns = rfns.next;
+    }
+
+    buf += "\n";
 
     buf += "sys: Sys;\n";
     buf += "draw: Draw;\n";
     buf += "tk: Tk;\n";
-    buf += "tkclient: Tkclient;\n\n";
+    buf += "tkclient: Tkclient;\n";
+
+    # Add module imports for reactive functions (like daytime)
+    rfn := prog.reactive_fns;
+    while (rfn != nil) {
+        if (rfn.expression != nil && len rfn.expression > 0) {
+            # Check if expression uses "daytime"
+            (nwords, words_list) := sys->tokenize(rfn.expression, " ");
+            if (nwords > 0 && hd words_list == "daytime->time()" ||
+                len rfn.expression > 10 && rfn.expression[0:10] == "daytime->") {
+                buf += "daytime: Daytime;\n";
+                break;
+            }
+        }
+        rfn = rfn.next;
+    }
+
+    buf += "\n";
 
     # Generate module declaration
     buf += sys->sprint("%s: module\n{\n", cg.module_name);
     buf += "    init: fn(ctxt: ref Draw->Context, nil: list of string);\n";
 
-    # Add function signatures from code blocks
+    # Add function signatures from code blocks (excluding reactive functions)
     cb := prog.code_blocks;
     while (cb != nil) {
         if (cb.cbtype == Ast->CODE_LIMBO && cb.code != nil) {
@@ -837,26 +1421,60 @@ generate_prologue(cg: ref Codegen, prog: ref Program): string
                 if (code[colon+1] == ' ' && code[colon+2] == 'f' &&
                     code[colon+3] == 'n' && code[colon+4] == '(') {
 
-                    # Find function name start
-                    start := colon - 1;
-                    while (start > 0 && (code[start] == '\n' || code[start] == ' ' || code[start] == '\t'))
-                        start--;
+                    # Check if this line contains "every" - if so, skip it (reactive function)
+                    line_start := colon;
+                    while (line_start > 0 && code[line_start] != '\n')
+                        line_start--;
 
-                    # Find end of name
-                    name_end := start;
-                    while (name_end > 0 && code[name_end] != '\n' &&
-                           code[name_end] != ' ' && code[name_end] != '\t')
-                        name_end--;
+                    line_end := colon + 5;
+                    while (line_end < len code && code[line_end] != '\n')
+                        line_end++;
 
-                    func_name := code[name_end+1 : start+1];
+                    is_reactive := 0;
+                    if (line_end < len code) {
+                        line := code[line_start : line_end];
+                        for (k := 0; k < len line - 4; k++) {
+                            if (line[k:k+5] == "every") {
+                                is_reactive = 1;
+                                break;
+                            }
+                        }
+                    }
 
-                    if (len func_name > 0 && func_name[0] >= 'a' && func_name[0] <= 'z') {
-                        buf += sys->sprint("    %s: fn();\n", func_name);
+                    if (!is_reactive) {
+                        # Find function name start
+                        start := colon - 1;
+                        while (start > 0 && (code[start] == '\n' || code[start] == ' ' || code[start] == '\t'))
+                            start--;
+
+                        # Find end of name
+                        name_end := start;
+                        while (name_end > 0 && code[name_end] != '\n' &&
+                               code[name_end] != ' ' && code[name_end] != '\t')
+                            name_end--;
+
+                        func_name := code[name_end+1 : start+1];
+
+                        if (len func_name > 0 && func_name[0] >= 'a' && func_name[0] <= 'z') {
+                            buf += sys->sprint("    %s: fn();\n", func_name);
+                        }
                     }
                 }
             }
         }
         cb = cb.next;
+    }
+
+    # Add reactive function signatures
+    rfns2 := prog.reactive_fns;
+    while (rfns2 != nil) {
+        buf += sys->sprint("    %s_update: fn();\n", rfns2.name);
+        rfns2 = rfns2.next;
+    }
+
+    # Add reactive_timer signature if we have reactive functions
+    if (has_reactive_functions(prog)) {
+        buf += "    reactive_timer: fn(tick: chan of int);\n";
     }
 
     buf += "};\n";
@@ -886,6 +1504,32 @@ generate_code_blocks(cg: ref Codegen, prog: ref Program): string
 
                 if (current >= len code)
                     break;
+
+                # Check for reactive function declaration (contains "every")
+                # Skip these as they're handled separately
+                line_start := current;
+                while (current < len code && code[current] != '\n')
+                    current++;
+
+                if (current > line_start) {
+                    line := code[line_start : current];
+                    # Check if this line is a reactive function (contains "every")
+                    has_every := 0;
+                    for (j := 0; j < len line - 4; j++) {
+                        if (line[j:j+5] == "every") {
+                            has_every = 1;
+                            break;
+                        }
+                    }
+                    if (has_every) {
+                        # Skip this line - it's a reactive function
+                        current++;
+                        continue;
+                    }
+                }
+
+                # Reset current to parse the line
+                current = line_start;
 
                 # Find function name (ends with ':')
                 colon := current;
@@ -1002,8 +1646,8 @@ generate_tkcmds_array(cg: ref Codegen): string
         rev = tl rev;
     }
 
-    # Let Tk auto-size the window to fit content
-    # Removed wm geometry and pack propagate - they prevented proper window sizing
+    # Add pack propagate before update to prevent window from auto-sizing
+    sys->fprint(cg.output, "    \"pack propagate . 0\",\n");
     sys->fprint(cg.output, "    \"update\"\n");
     sys->fprint(cg.output, "};\n\n");
 
@@ -1047,7 +1691,26 @@ generate_init(cg: ref Codegen, prog: ref Program): string
     sys->fprint(cg.output, "    sys = load Sys Sys->PATH;\n");
     sys->fprint(cg.output, "    draw = load Draw Draw->PATH;\n");
     sys->fprint(cg.output, "    tk = load Tk Tk->PATH;\n");
-    sys->fprint(cg.output, "    tkclient = load Tkclient Tkclient->PATH;\n\n");
+    sys->fprint(cg.output, "    tkclient = load Tkclient Tkclient->PATH;\n");
+
+    # Load daytime if reactive functions use it
+    rfns := prog.reactive_fns;
+    while (rfns != nil) {
+        if (rfns.expression != nil && len rfns.expression > 0) {
+            # Check if expression uses "daytime"
+            (nparts, parts_list) := sys->tokenize(rfns.expression, "->");
+            if (nparts > 1) {
+                if (hd parts_list == "daytime") {
+                    sys->fprint(cg.output, "    daytime = load Daytime Daytime->PATH;\n");
+                    break;
+                }
+            }
+        }
+        rfns = rfns.next;
+    }
+
+    sys->fprint(cg.output, "\n");
+    sys->fprint(cg.output, "    sys->pctl(Sys->NEWPGRP, nil);\n");
     sys->fprint(cg.output, "    tkclient->init();\n\n");
 
     # Get app properties
@@ -1080,7 +1743,10 @@ generate_init(cg: ref Codegen, prog: ref Program): string
     cg.width = width;
     cg.height = height;
 
-    sys->fprint(cg.output, "    (toplevel, menubut) := tkclient->toplevel(ctxt, nil, \"%s\", 0);\n\n", title);
+    sys->fprint(cg.output, "    (toplevel, wmctl) := tkclient->toplevel(ctxt, \"\", \"%s\", 0);\n", title);
+    sys->fprint(cg.output, "    tk->cmd(toplevel, \"wm geometry . %dx%d\");\n", width, height);
+    sys->fprint(cg.output, "    tk->cmd(toplevel, \"configure -background %s\");\n", bg);
+    sys->fprint(cg.output, "\n");
 
     # Create command channel if we have callbacks
     has_callbacks := (cg.callbacks != nil);
@@ -1094,19 +1760,36 @@ generate_init(cg: ref Codegen, prog: ref Program): string
     sys->fprint(cg.output, "    for (i := 0; i < len tkcmds; i++)\n");
     sys->fprint(cg.output, "        tk->cmd(toplevel, tkcmds[i]);\n\n");
 
+    # Setup reactive timer if we have reactive functions
+    has_reactive := has_reactive_functions(prog);
+    if (has_reactive) {
+        sys->fprint(cg.output, "    tick := chan of int;\n");
+        sys->fprint(cg.output, "    spawn reactive_timer(tick);\n\n");
+
+        # Call initial reactive update
+        rfns := prog.reactive_fns;
+        while (rfns != nil) {
+            sys->fprint(cg.output, "    %s_update();\n", rfns.name);
+            rfns = rfns.next;
+        }
+        sys->fprint(cg.output, "\n");
+    }
+
     # Show window
     sys->fprint(cg.output, "    tkclient->onscreen(toplevel, nil);\n");
-    sys->fprint(cg.output, "    tkclient->startinput(toplevel, \"ptr\"::nil);\n\n");
-    sys->fprint(cg.output, "    stop := chan of int;\n");
-    sys->fprint(cg.output, "    spawn tkclient->handler(toplevel, stop);\n");
+    sys->fprint(cg.output, "    tkclient->startinput(toplevel, \"kbd\"::\"ptr\"::nil);\n\n");
 
     if (has_callbacks) {
         sys->fprint(cg.output, "    for(;;) {\n");
         sys->fprint(cg.output, "        alt {\n");
-        sys->fprint(cg.output, "        msg := <-menubut =>\n");
-        sys->fprint(cg.output, "            if(msg == \"exit\")\n");
-        sys->fprint(cg.output, "                break;\n");
-        sys->fprint(cg.output, "            tkclient->wmctl(toplevel, msg);\n");
+        sys->fprint(cg.output, "        s := <-toplevel.ctxt.kbd =>\n");
+        sys->fprint(cg.output, "            tk->keyboard(toplevel, s);\n");
+        sys->fprint(cg.output, "        s := <-toplevel.ctxt.ptr =>\n");
+        sys->fprint(cg.output, "            tk->pointer(toplevel, *s);\n");
+        sys->fprint(cg.output, "        c := <-toplevel.ctxt.ctl or\n");
+        sys->fprint(cg.output, "        c = <-toplevel.wreq or\n");
+        sys->fprint(cg.output, "        c = <-wmctl =>\n");
+        sys->fprint(cg.output, "            tkclient->wmctl(toplevel, c);\n");
         sys->fprint(cg.output, "        s := <-cmd =>\n");
 
         # Generate callback cases
@@ -1118,14 +1801,44 @@ generate_init(cg: ref Codegen, prog: ref Program): string
             cbs = tl cbs;
         }
 
+        # Add tick case for reactive functions
+        if (has_reactive) {
+            sys->fprint(cg.output, "        <-tick =>\n");
+            rfns := prog.reactive_fns;
+            while (rfns != nil) {
+                sys->fprint(cg.output, "            %s_update();\n", rfns.name);
+                rfns = rfns.next;
+            }
+        }
+
         sys->fprint(cg.output, "        }\n");
         sys->fprint(cg.output, "    }\n");
     } else {
-        sys->fprint(cg.output, "    while((msg := <-menubut) != \"exit\")\n");
-        sys->fprint(cg.output, "        tkclient->wmctl(toplevel, msg);\n");
+        sys->fprint(cg.output, "    for(;;) {\n");
+        sys->fprint(cg.output, "        alt {\n");
+        sys->fprint(cg.output, "        s := <-toplevel.ctxt.kbd =>\n");
+        sys->fprint(cg.output, "            tk->keyboard(toplevel, s);\n");
+        sys->fprint(cg.output, "        s := <-toplevel.ctxt.ptr =>\n");
+        sys->fprint(cg.output, "            tk->pointer(toplevel, *s);\n");
+        sys->fprint(cg.output, "        c := <-toplevel.ctxt.ctl or\n");
+        sys->fprint(cg.output, "        c = <-toplevel.wreq or\n");
+        sys->fprint(cg.output, "        c = <-wmctl =>\n");
+        sys->fprint(cg.output, "            tkclient->wmctl(toplevel, c);\n");
+
+        # Add tick case for reactive functions
+        if (has_reactive) {
+            sys->fprint(cg.output, "        <-tick =>\n");
+            rfns := prog.reactive_fns;
+            while (rfns != nil) {
+                sys->fprint(cg.output, "            %s_update();\n", rfns.name);
+                rfns = rfns.next;
+            }
+        }
+
+        sys->fprint(cg.output, "        }\n");
+        sys->fprint(cg.output, "    }\n");
     }
 
-    sys->fprint(cg.output, "    stop <-= 1;\n");
     sys->fprint(cg.output, "}\n");
 
     return nil;
@@ -1154,7 +1867,21 @@ generate(output: string, prog: ref Program, module_name: string): string
         return err;
     }
 
+    # Generate reactive functions before code blocks (so they're available)
+    err = generate_reactive_functions(cg, prog);
+    if (err != nil) {
+        fd = nil;
+        return err;
+    }
+
     err = generate_code_blocks(cg, prog);
+    if (err != nil) {
+        fd = nil;
+        return err;
+    }
+
+    # Generate reactive timer after code blocks
+    err = generate_reactive_timer(cg, prog);
     if (err != nil) {
         fd = nil;
         return err;
@@ -1190,12 +1917,13 @@ generate(output: string, prog: ref Program, module_name: string): string
 # Show usage message
 show_usage()
 {
-    sys->fprint(sys->fildes(2), "Usage: kryon [run] [-o output] input.kry\n");
+    sys->fprint(sys->fildes(2), "Usage: kryon [-o output] input.kry\n");
     sys->fprint(sys->fildes(2), "\nOptions:\n");
-    sys->fprint(sys->fildes(2), "  run          Generate .b, compile to .dis, and run\n");
     sys->fprint(sys->fildes(2), "  -o <output>  Specify output file (default: input.b)\n");
     sys->fprint(sys->fildes(2), "  -h           Show this help message\n");
-    sys->fprint(sys->fildes(2), "\nNote: input.kry must be a valid path to an existing file\n");
+    sys->fprint(sys->fildes(2), "\nExamples:\n");
+    sys->fprint(sys->fildes(2), "  kryon input.kry           Generate input.b\n");
+    sys->fprint(sys->fildes(2), "  kryon -o out.b in.kry    Generate to out.b\n");
 }
 
 # Derive module name from input file
@@ -1326,7 +2054,6 @@ init(ctxt: ref Draw->Context, argv: list of string)
 
     # Parse arguments
     (input, output, err) := parse_args(argv);
-    run_mode := 0;  # Not implemented yet
 
     if (err != nil) {
         if (err == "success:help")
@@ -1374,20 +2101,4 @@ init(ctxt: ref Draw->Context, argv: list of string)
     }
 
     sys->print("Successfully generated %s\n", output);
-
-    # Run mode: show commands to compile and run
-    if (run_mode) {
-        # Derive .dis filename
-        dis_file := output;
-        dot := len dis_file - 1;
-        while (dot >= 0 && dis_file[dot] != '.')
-            dot--;
-        if (dot > 0)
-            dis_file = dis_file[0:dot] + ".dis";
-        else
-            dis_file = dis_file + ".dis";
-
-        sys->print("\nTo compile: limbo -o %s %s\n", dis_file, output);
-        sys->print("To run: %s\n", dis_file);
-    }
 }

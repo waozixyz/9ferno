@@ -260,6 +260,7 @@ rewrite(Node *n)
 		n->right->src = n->left->src;
 		n->right->decl = n->ty->tof->decl;
 		n->right->ty = n->ty;
+		n->decl = n->ty->tof->decl;  /* Also set n->decl for LDT generation */
 		n->left = rewrite(left);
 		break;
 	case Ocast:

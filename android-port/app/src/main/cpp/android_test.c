@@ -29,6 +29,11 @@
 /* Global asset manager for loading Dis bytecode files */
 AAssetManager* g_asset_manager = NULL;
 
+/* Get the global asset manager (for use by devfs.c) */
+AAssetManager* android_get_asset_manager(void) {
+	return g_asset_manager;
+}
+
 /* Set the global asset manager (called from NativeActivity) */
 void set_asset_manager(AAssetManager* manager) {
 	g_asset_manager = manager;

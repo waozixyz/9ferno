@@ -1,0 +1,15 @@
+@limbo
+time: fn() = daytime->time()[0:19] every 1000
+@end
+
+Window {
+    title = "Date"
+    bg = "#191919"
+
+    Center {
+        Label {
+            text = time()
+            fg = "white"
+        }
+    }
+}

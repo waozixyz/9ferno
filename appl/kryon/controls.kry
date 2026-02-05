@@ -1,0 +1,137 @@
+// Kryon Controls Demo
+// Shows all available widgets with Tk-compatible properties
+
+@limbo
+onButtonClick: fn() {
+    sys->print("Button clicked\n");
+};
+
+onCheckToggle: fn() {
+    sys->print("Checkbox toggled\n");
+};
+
+onRadioSelect: fn() {
+    sys->print("Radio selected\n");
+};
+
+onListSelect: fn() {
+    sys->print("List item selected\n");
+};
+
+onScaleChange: fn() {
+    sys->print("Scale changed\n");
+};
+
+onEntryChange: fn() {
+    sys->print("Entry changed\n");
+};
+@end
+
+Window {
+    title = "Kryon Controls Demo"
+    width = 500
+    height = 600
+    bg = "#191919"
+
+    Column {
+        // Header
+        Label {
+            text = "Widget Showcase"
+            fg = "white"
+            bg = "#191919"
+            font = "Helvetica 20 bold"
+        }
+
+        // Buttons row
+        Row {
+            Button {
+                text = "OK"
+                bg = "#2ecc71"
+                fg = "white"
+                onClick = onButtonClick
+            }
+            Button {
+                text = "Cancel"
+                bg = "#e74c3c"
+                fg = "white"
+            }
+        }
+
+        // Checkbox
+        Checkbutton {
+            text = "Enable Feature"
+            fg = "white"
+            bg = "#191919"
+            onChecked = onCheckToggle
+        }
+
+        // Radio buttons
+        Column {
+            Label {
+                text = "Options:"
+                fg = "white"
+                bg = "#191919"
+            }
+            Radiobutton {
+                text = "Option 1"
+                fg = "white"
+                bg = "#191919"
+                value = "1"
+                onSelected = onRadioSelect
+            }
+            Radiobutton {
+                text = "Option 2"
+                fg = "white"
+                bg = "#191919"
+                value = "2"
+                onSelected = onRadioSelect
+            }
+        }
+
+        // Listbox
+        Frame {
+            bg = "#333333"
+            Label {
+                text = "Items:"
+                fg = "white"
+            }
+            Listbox {
+                width = 30
+                height = 5
+                bg = "white"
+                onSelected = onListSelect
+            }
+        }
+
+        // Scale slider
+        Frame {
+            bg = "#333333"
+            Label {
+                text = "Volume:"
+                fg = "white"
+            }
+            Scale {
+                from = 0
+                to = 100
+                orient = "horizontal"
+                length = 200
+                onScaled = onScaleChange
+            }
+        }
+
+        // Text entry
+        Frame {
+            bg = "#333333"
+            Label {
+                text = "Name:"
+                fg = "white"
+            }
+            Entry {
+                text = "Enter text..."
+                width = 30
+                bg = "white"
+                onChanged = onEntryChange
+            }
+        }
+    }
+}

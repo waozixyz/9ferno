@@ -322,10 +322,11 @@ emuinit(void *imod)
 	LOGI("emuinit: Module initialization complete");
 
 	/* Load and run a simple Dis module from assets */
-	/* Try minimal.dis first - the GUI test */
+	/* Try testsimple first - known working */
 	static const char* test_modules[] = {
-		"dis/minimal.dis",     /* GUI test with button */
 		"dis/testsimple.dis",  /* Has Sys_print calls that log to Android */
+		"dis/testload.dis",    /* Minimal Draw module test */
+		"dis/minimal.dis",     /* GUI test with button */
 		"dis/testprint.dis",
 		"dis/testnobox.dis",
 		"dis/testsleep.dis",
@@ -2336,20 +2337,20 @@ void Sys_werrstr(void *fp)
 }
 
 /* Tk functions - from libtk */
-void
+static void
 tkexec(void *tk, void *arg)
 {
 	USED(tk);
 	USED(arg);
 }
 
-char*
+static char*
 tkerrstr(void)
 {
 	return errbuf;
 }
 
-void*
+static void*
 tklook(void *tk, int x, int y, int want)
 {
 	USED(tk);
@@ -2359,7 +2360,7 @@ tklook(void *tk, int x, int y, int want)
 	return nil;
 }
 
-void
+static void
 tkdeliver(void *tk, void *t, void *c1, void *c2)
 {
 	USED(tk);
@@ -2368,20 +2369,20 @@ tkdeliver(void *tk, void *t, void *c1, void *c2)
 	USED(c2);
 }
 
-void
+static void
 tkquit(void *tk, int status)
 {
 	USED(tk);
 	USED(status);
 }
 
-void
+static void
 tkdirty(void *tk)
 {
 	USED(tk);
 }
 
-char*
+static char*
 tkposn(void *t)
 {
 	USED(t);
@@ -2390,7 +2391,7 @@ tkposn(void *t)
 
 /* checkdisplay defined in libinterp/draw.c - excluded here */
 
-void*
+static void*
 tknewobj(void *tk, void *parent, char *name, char *type)
 {
 	USED(tk);
@@ -2404,7 +2405,7 @@ void Sys_stream(void *fp)
 {
 }
 
-int
+static int
 tkrepeat(void *tk, int ms)
 {
 	USED(tk);
@@ -2412,20 +2413,20 @@ tkrepeat(void *tk, int ms)
 	return 0;
 }
 
-void
+static void
 tkfreeobj(void *tk, void *obj)
 {
 	USED(tk);
 	USED(obj);
 }
 
-void*
+static void*
 tksorttable(void)
 {
 	return nil;
 }
 
-char*
+static char*
 tkeventfmt(char *buf, int n, void *e)
 {
 	USED(buf);
@@ -2434,7 +2435,7 @@ tkeventfmt(char *buf, int n, void *e)
 	return "";
 }
 
-void
+static void
 tkfreebind(void *b)
 {
 	USED(b);
@@ -2442,7 +2443,7 @@ tkfreebind(void *b)
 
 /* lookupimage defined in libinterp/draw.c - excluded here */
 
-Rectangle
+static Rectangle
 tkrect(void *t)
 {
 	USED(t);
@@ -2625,13 +2626,13 @@ Bterm(Biobufhdr *bp)
 /* Tk string parsing */
 /* tkword is defined in libtk/parse.c */
 
-void
+static void
 tkfreename(char *name)
 {
 	USED(name);
 }
 
-char*
+static char*
 tkvalue(char *s, char *fmt, ...)
 {
 	USED(s);
@@ -2639,7 +2640,7 @@ tkvalue(char *s, char *fmt, ...)
 	return "";
 }
 
-void*
+static void*
 tkgc(void *tk, void *d, int fill)
 {
 	USED(tk);
@@ -2648,7 +2649,7 @@ tkgc(void *tk, void *d, int fill)
 	return nil;
 }
 
-void
+static void
 tkbevel(void *tk, void *b, int style)
 {
 	USED(tk);
@@ -2656,7 +2657,7 @@ tkbevel(void *tk, void *b, int style)
 	USED(style);
 }
 
-char*
+static char*
 tkitem(char *s, char *e)
 {
 	USED(s);
@@ -2664,7 +2665,7 @@ tkitem(char *s, char *e)
 	return "";
 }
 
-int
+static int
 tkchanhastype(void *c, char *type)
 {
 	USED(c);
@@ -2672,7 +2673,7 @@ tkchanhastype(void *c, char *type)
 	return 0;
 }
 
-void
+static void
 tkdrawstring(void *tk, void *bp, char *s, int n, void *f, void *scr, int p)
 {
 	USED(tk);
@@ -2684,7 +2685,7 @@ tkdrawstring(void *tk, void *bp, char *s, int n, void *f, void *scr, int p)
 	USED(p);
 }
 
-void
+static void
 tkdrawrelief(void *tk, void *b, int w, int style)
 {
 	USED(tk);
@@ -2693,27 +2694,27 @@ tkdrawrelief(void *tk, void *b, int w, int style)
 	USED(style);
 }
 
-int
+static int
 tkhasalpha(void *d)
 {
 	USED(d);
 	return 0;
 }
 
-int
+static int
 TKF2I(int tk)
 {
 	return tk;
 }
 
-void
+static void
 tkputenv(char *name, char *val)
 {
 	USED(name);
 	USED(val);
 }
 
-int
+static int
 tkfprint(int fd, char *s)
 {
 	USED(fd);
@@ -2721,7 +2722,7 @@ tkfprint(int fd, char *s)
 	return 0;
 }
 
-char*
+static char*
 tkfracword(char *s, char *e, char **w)
 {
 	USED(s);
@@ -2730,7 +2731,7 @@ tkfracword(char *s, char *e, char **w)
 	return "";
 }
 
-char*
+static char*
 tkaction(void *tk, void *b, char *a, char *r, int infirst)
 {
 	USED(tk);
@@ -2741,7 +2742,7 @@ tkaction(void *tk, void *b, char *a, char *r, int infirst)
 	return "";
 }
 
-int
+static int
 tkfrac(char *s, char *e, int *num, int *denom)
 {
 	USED(s);
@@ -2751,7 +2752,7 @@ tkfrac(char *s, char *e, int *num, int *denom)
 	return 0;
 }
 
-void
+static void
 tksubdeliver(void *tk, void *t, void *c, int type, void *a, int click)
 {
 	USED(tk);
@@ -2762,7 +2763,7 @@ tksubdeliver(void *tk, void *t, void *c, int type, void *a, int click)
 	USED(click);
 }
 
-char*
+static char*
 tkname(char *s, char *e, char **w)
 {
 	USED(s);
@@ -2771,7 +2772,7 @@ tkname(char *s, char *e, char **w)
 	return "";
 }
 
-void*
+static void*
 tkaddchild(void *tk, void *parent, void *child)
 {
 	USED(tk);
@@ -2780,7 +2781,7 @@ tkaddchild(void *tk, void *parent, void *child)
 	return nil;
 }
 
-int
+static int
 tklinehit(void *t, int x0, int y0, int x1, int y1, int thick)
 {
 	USED(t);
@@ -2792,7 +2793,7 @@ tklinehit(void *t, int x0, int y0, int x1, int y1, int thick)
 	return 0;
 }
 
-int
+static int
 tkrgbashade(int col, int shade)
 {
 	USED(col);
@@ -2800,7 +2801,7 @@ tkrgbashade(int col, int shade)
 	return 0;
 }
 
-int
+static int
 tkinsidepoly(void *poly, int x, int y)
 {
 	USED(poly);
@@ -2809,7 +2810,7 @@ tkinsidepoly(void *poly, int x, int y)
 	return 0;
 }
 
-void
+static void
 tktextsdraw(void *t, void *screen, int offx, int offy)
 {
 	USED(t);
@@ -2818,7 +2819,7 @@ tktextsdraw(void *t, void *screen, int offx, int offy)
 	USED(offy);
 }
 
-void*
+static void*
 tkfindsub(void *tk, void *w, char *name)
 {
 	USED(tk);
@@ -2827,7 +2828,7 @@ tkfindsub(void *tk, void *w, char *name)
 	return nil;
 }
 
-void
+static void
 tkerr(void *tk, void *t, char *msg)
 {
 	USED(tk);
@@ -2835,14 +2836,14 @@ tkerr(void *tk, void *t, char *msg)
 	USED(msg);
 }
 
-void
+static void
 tkcancel(void *tk, void *t)
 {
 	USED(tk);
 	USED(t);
 }
 
-void
+static void
 tksetmgrab(void *tk, void *t, void *grab)
 {
 	USED(tk);
@@ -2850,33 +2851,33 @@ tksetmgrab(void *tk, void *t, void *grab)
 	USED(grab);
 }
 
-int
+static int
 tkhaskeyfocus(void *t)
 {
 	USED(t);
 	return 0;
 }
 
-int
+static int
 tkmmax(int a, int b)
 {
 	return a > b ? a : b;
 }
 
-int
+static int
 tkiswordchar(int c)
 {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
 }
 
-void
+static void
 tkblink(void *t, int on)
 {
 	USED(t);
 	USED(on);
 }
 
-void
+static void
 tkscrn2local(void *t, int *x, int *y)
 {
 	USED(t);
@@ -2884,7 +2885,7 @@ tkscrn2local(void *t, int *x, int *y)
 	USED(y);
 }
 
-int
+static int
 tkvisiblerect(void *t, int x, int y, int w, int h)
 {
 	USED(t);
@@ -2895,7 +2896,7 @@ tkvisiblerect(void *t, int x, int y, int w, int h)
 	return 0;
 }
 
-void
+static void
 tkbox(void *tk, void *b, int n, int *x, int *y)
 {
 	USED(tk);
@@ -2905,26 +2906,26 @@ tkbox(void *tk, void *b, int n, int *x, int *y)
 	USED(y);
 }
 
-void
+static void
 tkcancelrepeat(void *tk)
 {
 	USED(tk);
 }
 
-void
+static void
 tkblinkreset(void *tk)
 {
 	USED(tk);
 }
 
-char*
+static char*
 tkdefaultenv(char *s)
 {
 	USED(s);
 	return "";
 }
 
-int
+static int
 tkstringsize(void *f, char *s, int n)
 {
 	USED(f);
@@ -2936,7 +2937,7 @@ tkstringsize(void *f, char *s, int n)
 /* poolsetcompact is defined in emu/port/alloc.c */
 
 /* Tk more functions */
-void
+static void
 tksettransparent(void *tk, void *t, int trans)
 {
 	USED(tk);
@@ -2944,7 +2945,7 @@ tksettransparent(void *tk, void *t, int trans)
 	USED(trans);
 }
 
-int
+static int
 tkrgbavals(char *s, int *red, int *green, int *blue, int *alpha)
 {
 	USED(s);
@@ -2955,7 +2956,7 @@ tkrgbavals(char *s, int *red, int *green, int *blue, int *alpha)
 	return 0;
 }
 
-int
+static int
 tkrgba(int red, int green, int blue, int alpha)
 {
 	USED(red);
@@ -2969,7 +2970,7 @@ tkrgba(int red, int green, int blue, int alpha)
 
 /* font_open defined in libinterp/draw.c - excluded here */
 
-char**
+static char**
 tkdupenv(char **env)
 {
 	USED(env);
@@ -3025,14 +3026,14 @@ void Sys_pread(void *fp)
 /* font_close defined in libinterp/draw.c - excluded here */
 
 /* Tk environment functions */
-char**
+static char**
 tknewenv(char **env)
 {
 	USED(env);
 	return nil;
 }
 
-void
+static void
 tkfreecolcache(void *tk)
 {
 	USED(tk);
@@ -3189,11 +3190,59 @@ static void
 init_android_display(void)
 {
 	extern void *_display;
+	extern Memdata* attachscreen(Rectangle *r, ulong *chan, int *d, int *width, int *softscreen);
+	extern void flushmemscreen(Rectangle r);
 
 	if(_display == nil) {
 		_display = android_initdisplay(nil);
 		if(_display) {
 			LOGI("init_android_display: Display initialized at %p", _display);
+
+			/* Draw a test pattern to verify graphics are working */
+			Rectangle r;
+			ulong chan;
+			int depth, width, softscreen;
+			Memdata *md = attachscreen(&r, &chan, &depth, &width, &softscreen);
+			if(md && md->bdata) {
+				int swidth = r.max.x - r.min.x;
+				int sheight = r.max.y - r.min.y;
+				uchar *base = md->bdata;
+
+				LOGI("init_android_display: Drawing test pattern %dx%d", swidth, sheight);
+
+				/* Clear to blue */
+				for(int y = 0; y < sheight; y++) {
+					for(int x = 0; x < swidth; x++) {
+						int offset = (y * swidth + x) * 4;
+						base[offset + 0] = 255;   /* B */
+						base[offset + 1] = 100;   /* G */
+						base[offset + 2] = 0;     /* R */
+						base[offset + 3] = 255;   /* A */
+					}
+				}
+
+				/* Draw a white "TaijiOS" text rectangle in the center */
+				int text_height = 100;
+				int text_width = 400;
+				int text_x = (swidth - text_width) / 2;
+				int text_y = (sheight - text_height) / 2;
+
+				for(int y = text_y; y < text_y + text_height; y++) {
+					for(int x = text_x; x < text_x + text_width; x++) {
+						if(y >= 0 && y < sheight && x >= 0 && x < swidth) {
+							int offset = (y * swidth + x) * 4;
+							base[offset + 0] = 255;   /* B */
+							base[offset + 1] = 255;   /* G */
+							base[offset + 2] = 255;   /* R */
+							base[offset + 3] = 255;   /* A */
+						}
+					}
+				}
+
+				/* Flush the test pattern to screen */
+				flushmemscreen(r);
+				LOGI("init_android_display: Test pattern drawn");
+			}
 		} else {
 			LOGE("init_android_display: Failed to initialize display");
 		}
@@ -3359,3 +3408,33 @@ seekdir(DIR *dirp, long loc)
 /* dbgexit is in emu/port/devprog.c */
 /* vflag is in emu/port/dis.c */
 /* closeegrp is in emu/port/env.c */
+
+/*
+ * Android filesystem initialization
+ * Stub implementation for android_main.c compatibility
+ */
+void
+android_fs_init(const char* internal_path, const char* external_path)
+{
+	USED(internal_path);
+	USED(external_path);
+	/* Paths will be handled by the existing devfs-posix.c implementation */
+	LOGI("android_fs_init: internal=%s external=%s",
+	     internal_path ? internal_path : "nil",
+	     external_path ? external_path : "nil");
+}
+
+/*
+ * Load Dis bytecode from Android assets
+ * Stub implementation - in production, this would load from APK assets
+ * For now, returns NULL to indicate we'll use the filesystem-based loading
+ */
+uchar*
+load_dis_from_assets(const char* path, int* size_out)
+{
+	USED(path);
+	USED(size_out);
+	/* Filesystem-based loading will be used instead */
+	LOGI("load_dis_from_assets: %s (using filesystem instead)", path);
+	return nil;
+}

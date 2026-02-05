@@ -19,7 +19,7 @@ include "security.m";
 include "string.m";
 	str: String;
 
-include "promptstring.b";
+include "../lib/promptstring.b";
 
 Getauthinfo: module
 {

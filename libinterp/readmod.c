@@ -15,9 +15,14 @@ readmod(char *path, Module *m, int sync)
 	Module *ans;
 	u32 length;
 
+	print("readmod: path='%s', m=%p, sync=%d\n", path, m, sync);
+
 	if(path[0] == '$') {
-		if(m == nil)
+		print("readmod: built-in module path, m=%p\n", m);
+		if(m == nil) {
 			kwerrstr("module not built-in");
+			print("readmod ERROR: built-in module '%s' not found (m==nil)\n", path);
+		}
 		return m;
 	}
 

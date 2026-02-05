@@ -50,36 +50,10 @@ build_acme_modules() {
 
 # Function to build wm modules explicitly
 build_wm_modules() {
-    echo "Building wm modules..."
-    LIMBO="$ROOT/Linux/amd64/bin/limbo"
-    if [ ! -f "$LIMBO" ]; then
-        echo "Error: limbo compiler not found at $LIMBO"
-        return 1
-    fi
+    echo "Building wm modules using mk..."
+    export PATH="$ROOT/Linux/amd64/bin:$PATH"
 
-    # Build all wm .b files using the existing build-all.sh script
-    (cd "$ROOT/appl/wm" && \
-        if [ -f "build-all.sh" ]; then \
-            sh build-all.sh && \
-            sh install-all.sh && \
-            echo "  WM modules built and installed"; \
-        else \
-            # Fallback: build each .b file individually
-            for f in *.b; do \
-                dis="${f%.b}.dis"; \
-                if [ "$f" -nt "$dis" ] || [ ! -f "$dis" ]; then \
-                    echo "  Building $f..."; \
-                    "$LIMBO" -I"$ROOT/module" -gw "$f" || echo "  Warning: failed to build $dis"; \
-                fi; \
-            done; \
-            # Install all .dis files
-            for dis in *.dis; do \
-                if [ -f "$dis" ]; then \
-                    cp "$dis" "$ROOT/dis/wm/"; \
-                fi; \
-            done; \
-            echo "  WM modules built and installed"; \
-        fi)
+    (cd "$ROOT/appl/wm" && mk install) || echo "  Warning: wm build failed"
 
     echo "WM modules build complete."
 }
@@ -233,7 +207,7 @@ run_nixos() {
 
     # Run emu directly (nix-shell only needed for building)
     export PATH="$ROOT/Linux/amd64/bin:$PATH"
-    exec "$ROOT/Linux/amd64/bin/emu" -r "$ROOT" "$@"
+    exec "$ROOT/Linux/amd64/bin/emu" -p heap=128m -r "$ROOT" "$@"
 }
 
 # Function to run on OpenBSD
@@ -254,7 +228,7 @@ run_openbsd() {
     export PATH="$ROOT/Linux/amd64/bin:$PATH"
 
     # Run emu
-    exec "$ROOT/Linux/amd64/bin/emu" -r "$ROOT" "$@"
+    exec "$ROOT/Linux/amd64/bin/emu" -p heap=128m -r "$ROOT" "$@"
 }
 
 # Function to run on generic Linux
@@ -275,7 +249,7 @@ run_linux() {
     export PATH="$ROOT/Linux/amd64/bin:$PATH"
 
     # Run emu
-    exec "$ROOT/Linux/amd64/bin/emu" -r "$ROOT" "$@"
+    exec "$ROOT/Linux/amd64/bin/emu" -p heap=128m -r "$ROOT" "$@"
 }
 
 # Run based on OS

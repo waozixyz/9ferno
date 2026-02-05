@@ -13,6 +13,7 @@
 #include <stdlib.h>
 
 #include <android/log.h>
+#include <android/asset_manager.h>
 
 #include "dat.h"
 #include "fns.h"
@@ -21,6 +22,82 @@
 #define LOG_TAG "TaijiOS-FS"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+/* External asset manager - set from os.c */
+extern AAssetManager* android_get_asset_manager(void);
+
+/* In-memory file descriptor for .dis files from assets */
+#define MAX_ASSET_FDS 32
+typedef struct {
+	int in_use;
+	char path[256];
+	uchar* data;
+	s32 size;
+	s32 offset;
+} asset_fd_t;
+
+static asset_fd_t asset_fds[MAX_ASSET_FDS] = {0};
+
+/* Allocate a file descriptor for an asset file */
+static int alloc_asset_fd(const char* path, uchar* data, s32 size) {
+	for(int i = 0; i < MAX_ASSET_FDS; i++) {
+		if(!asset_fds[i].in_use) {
+			asset_fds[i].in_use = 1;
+			strncpy(asset_fds[i].path, path, sizeof(asset_fds[i].path) - 1);
+			asset_fds[i].data = data;
+			asset_fds[i].size = size;
+			asset_fds[i].offset = 0;
+			/* Return fd starting from 1000 to distinguish from regular fds */
+			return 1000 + i;
+		}
+	}
+	return -1;
+}
+
+/* Load .dis file from assets into memory */
+static int open_dis_from_assets(const char* path) {
+	AAssetManager* mgr = android_get_asset_manager();
+	if(!mgr) {
+		LOGE("No asset manager");
+		return -1;
+	}
+
+	/* Convert path to asset path */
+	/* /dis/lib/tkclient.dis -> dis/lib/tkclient.dis */
+	const char* asset_path = path;
+	if(path[0] == '/') {
+		asset_path = path + 1;  /* Skip leading slash */
+	}
+
+	LOGI("Opening .dis file from assets: %s", asset_path);
+
+	AAsset* asset = AAssetManager_open(mgr, asset_path, AASSET_MODE_BUFFER);
+	if(!asset) {
+		LOGE("Failed to open asset: %s", asset_path);
+		return -1;
+	}
+
+	s32 size = AAsset_getLength(asset);
+	uchar* data = malloc(size);
+	if(!data) {
+		LOGE("Failed to allocate memory for asset: %s", asset_path);
+		AAsset_close(asset);
+		return -1;
+	}
+
+	AAsset_read(asset, data, size);
+	AAsset_close(asset);
+
+	int fd = alloc_asset_fd(path, data, size);
+	if(fd < 0) {
+		LOGE("Failed to allocate fd for asset: %s", asset_path);
+		free(data);
+		return -1;
+	}
+
+	LOGI("Opened .dis file from assets: %s, size=%d, fd=%d", asset_path, size, fd);
+	return fd;
+}
 
 /*
  * Android storage paths
@@ -94,6 +171,14 @@ kopen(const char* path, int mode)
 	char* android_path;
 	int flags, fd;
 
+	LOGI("kopen: path='%s', mode=%d", path, mode);
+
+	/* Check if this is a .dis file - load from assets */
+	if(path && strstr(path, ".dis") != nil) {
+		LOGI("kopen: .dis file detected, loading from assets");
+		return open_dis_from_assets(path);
+	}
+
 	android_path = map_path(path);
 
 	/* Map Inferno mode to POSIX flags */
@@ -123,6 +208,7 @@ kopen(const char* path, int mode)
 		return -1;
 	}
 
+	LOGI("kopen: opened fd=%d for %s", fd, path);
 	return fd;
 }
 
@@ -132,6 +218,21 @@ kopen(const char* path, int mode)
 int
 kclose(int fd)
 {
+	/* Check if this is an asset fd */
+	if(fd >= 1000 && fd < 1000 + MAX_ASSET_FDS) {
+		int idx = fd - 1000;
+		if(asset_fds[idx].in_use) {
+			asset_fds[idx].in_use = 0;
+			if(asset_fds[idx].data) {
+				free(asset_fds[idx].data);
+				asset_fds[idx].data = nil;
+			}
+			LOGI("Closed asset fd %d", fd);
+			return 0;
+		}
+		return -1;
+	}
+
 	return close(fd);
 }
 
@@ -141,6 +242,19 @@ kclose(int fd)
 s32
 kread(int fd, void* buf, s32 count)
 {
+	/* Check if this is an asset fd */
+	if(fd >= 1000 && fd < 1000 + MAX_ASSET_FDS) {
+		int idx = fd - 1000;
+		if(asset_fds[idx].in_use && asset_fds[idx].data) {
+			s32 remaining = asset_fds[idx].size - asset_fds[idx].offset;
+			s32 to_read = (count < remaining) ? count : remaining;
+			memcpy(buf, asset_fds[idx].data + asset_fds[idx].offset, to_read);
+			asset_fds[idx].offset += to_read;
+			return to_read;
+		}
+		return -1;
+	}
+
 	return read(fd, buf, count);
 }
 

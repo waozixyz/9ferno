@@ -65,4 +65,5 @@ init(nil: ref Draw->Context, argv: list of string)
 	}
 	for(i=0;i<n;i++)
 		sys->write(sys->fildes(1), z, bs);
+	return;
 }

@@ -100,12 +100,18 @@ linkmod(Module *m, Import *ldt, int mkmp)
 	Modlink *ml;
 	Import *l;
 
+	print("linkmod: m=%p, ldt=%p, mkmp=%d\n", m, ldt, mkmp);
+	if(m != nil)
+		print("linkmod: m->name='%s', m->path='%s'\n", m->name, m->path);
+
 	if(m == nil)
 		return H;
 
 	for(i = 0, l = ldt; l->name != nil; i++, l++)
 		;
+	print("linkmod: %d imports to link\n", i);
 	ml = mklinkmod(m, i);
+	print("linkmod: ml=%p created by mklinkmod\n", ml);
 
 	if(mkmp){
 		if(m->rt == DYNMOD)
@@ -123,12 +129,15 @@ linkmod(Module *m, Import *ldt, int mkmp)
 	for(i = 0, l = ldt; l->name != nil; i++, l++) {
 		DP("linkmod connect i %d l->name %s l->sig 0x%ux",
 			i, l->name, l->sig);
+		print("linkmod: linking import %d: %s (sig 0x%x)\n", i, l->name, l->sig);
 		if(linkm(m, ml, i, l) < 0){
+			print("linkmod ERROR: linkm failed for %s\n", l->name);
 			destroy(ml);
 			return H;
 		}
 	}
 
+	print("linkmod: returning ml=%p\n", ml);
 	return ml;
 }
 

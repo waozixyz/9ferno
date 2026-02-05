@@ -5,7 +5,7 @@ pkgs.mkShell {
     # Android build tools
     android-studio
     android-tools
-    jdk17
+    jdk11
     gradle
 
     # Native build tools
@@ -21,7 +21,7 @@ pkgs.mkShell {
   # Android SDK environment variables
   ANDROID_HOME = "${pkgs.android-studio}/android-sdk";
   ANDROID_SDK_ROOT = "${pkgs.android-studio}/android-sdk";
-  GRADLE_OPTS = "-Dorg.gradle.project.java.home=${pkgs.jdk17.home}";
+  GRADLE_OPTS = "-Dorg.gradle.project.java.home=${pkgs.jdk11.home}";
 
   # Shell hooks to display info
   shellHook = ''
@@ -29,7 +29,7 @@ pkgs.mkShell {
     echo " TaijiOS Android Build Environment"
     echo "=================================="
     echo "ANDROID_HOME: $ANDROID_HOME"
-    echo "JAVA_HOME: ${pkgs.jdk17.home}"
+    echo "JAVA_HOME: ${pkgs.jdk11.home}"
     echo ""
     echo "Available commands:"
     echo "  ./build-android.sh build   - Build APK"

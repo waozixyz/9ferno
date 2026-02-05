@@ -158,8 +158,10 @@ set(EMU_ANDROID_SOURCES
 	${EMU_ANDROID}/win.c
 	${EMU_ANDROID}/wm.c
 	${EMU_ANDROID}/devwmctx.c
-	${CMAKE_CURRENT_SOURCE_DIR}/android_test.c
-	# ${EMU_ANDROID}/android_main.c  # Requires android_native_app_glue - add later
+	${EMU_ANDROID}/deveia.c
+	${EMU_ANDROID}/devaudio.c
+	${CMAKE_CURRENT_SOURCE_DIR}/android_native_app_glue.c
+	${CMAKE_CURRENT_SOURCE_DIR}/android_main.c
 	${EMU_ANDROID}/segflush-arm64.c
 	${EMU_ANDROID}/asm-arm64.S
 )
@@ -218,7 +220,7 @@ file(GLOB_RECURSE LIBTK_SOURCES
 )
 list(FILTER LIBTK_SOURCES EXCLUDE REGEX ".*tkx11.*")
 list(FILTER LIBTK_SOURCES EXCLUDE REGEX ".*x11.*")
-list(FILTER LIBTK_SOURCES EXCLUDE REGEX ".*utils\\.c")
+# libtk/utils.c is now included - pool allocator fixes applied
 
 # libsec source files
 file(GLOB_RECURSE LIBSEC_SOURCES
@@ -252,6 +254,7 @@ target_link_libraries(taijos
 	android
 	EGL
 	GLESv2
+	OpenSLES
 	m
 	z
 	dl

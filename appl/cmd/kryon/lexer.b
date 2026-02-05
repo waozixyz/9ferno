@@ -208,18 +208,30 @@ read_color_literal(l: ref LexerObj): string
 # Check if identifier is a keyword
 check_keyword(id: string): int
 {
+    # Code blocks
     if (id == "limbo") return TOKEN_LIMBO;
     if (id == "tcl") return TOKEN_TCL;
     if (id == "lua") return TOKEN_LUA;
     if (id == "end") return TOKEN_END;
+
+    # Widget types
     if (id == "Window") return TOKEN_WINDOW;
-    if (id == "Container") return TOKEN_CONTAINER;
+    if (id == "Frame") return TOKEN_FRAME;
     if (id == "Button") return TOKEN_BUTTON;
-    if (id == "Text") return TOKEN_TEXT;
-    if (id == "Input") return TOKEN_INPUT;
+    if (id == "Label") return TOKEN_LABEL;
+    if (id == "Entry") return TOKEN_ENTRY;
+    if (id == "Checkbutton") return TOKEN_CHECKBUTTON;
+    if (id == "Radiobutton") return TOKEN_RADIOBUTTON;
+    if (id == "Listbox") return TOKEN_LISTBOX;
+    if (id == "Canvas") return TOKEN_CANVAS;
+    if (id == "Scale") return TOKEN_SCALE;
+    if (id == "Menubutton") return TOKEN_MENUBUTTON;
+    if (id == "Message") return TOKEN_MESSAGE;
     if (id == "Column") return TOKEN_COLUMN;
     if (id == "Row") return TOKEN_ROW;
     if (id == "Center") return TOKEN_CENTER;
+    if (id == "every") return TOKEN_EVERY;
+
     return TOKEN_IDENTIFIER;
 }
 
@@ -292,7 +304,7 @@ read_code_block(l: ref LexerObj): ref Token
     }
 
     # Unterminated code block - return error token
-    tok := create_token(TOKEN_EOF, start_line);
+    tok := create_token(TOKEN_ENDINPUT, start_line);
     tok.string_val = sys->sprint("unterminated code block at line %d", start_line);
     return tok;
 }
@@ -306,7 +318,7 @@ lex(l: ref LexerObj): ref Token
     c := peek_char(l);
 
     if (c == -1) {
-        return create_token(TOKEN_EOF, lineno);
+        return create_token(TOKEN_ENDINPUT, lineno);
     }
 
     # Check for @ keyword/code block start
@@ -399,7 +411,7 @@ lex(l: ref LexerObj): ref Token
     if (c == '"') {
         (s, err) := read_string_literal(l);
         if (err != nil) {
-            tok := create_token(TOKEN_EOF, lineno);
+            tok := create_token(TOKEN_ENDINPUT, lineno);
             tok.string_val = err;
             return tok;
         }
@@ -422,7 +434,7 @@ lex(l: ref LexerObj): ref Token
     if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_') {
         id := read_identifier(l);
         if (id == nil) {
-            return create_token(TOKEN_EOF, lineno);
+            return create_token(TOKEN_ENDINPUT, lineno);
         }
 
         typ := check_keyword(id);

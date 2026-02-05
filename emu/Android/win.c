@@ -14,6 +14,7 @@
 
 #include "dat.h"
 #include "fns.h"
+#include "kernel.h"
 #include "error.h"
 #include <draw.h>
 #include <memdraw.h>
@@ -24,15 +25,16 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <EGL/egl.h>
+#include <android_native_app_glue.h>
 
 #define LOG_TAG "TaijiOS-Win"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-/* EGL context - accessible by android_test.c */
-extern EGLDisplay g_display;
-extern EGLSurface g_surface;
-extern EGLContext g_context;
+/* EGL context - accessible by android_test.c and win.c */
+EGLDisplay g_display = EGL_NO_DISPLAY;
+EGLSurface g_surface = EGL_NO_SURFACE;
+EGLContext g_context = EGL_NO_CONTEXT;
 
 /* Screen buffer data */
 static int screenwidth = 0;
@@ -343,7 +345,7 @@ android_initdisplay(void (*error)(Display*, char*))
 		LOGE("android_initdisplay: libqlalloc failed");
 		return nil;
 	}
-	LOGI("android_initdisplay: libqlalloc succeeded");
+	LOGI("android_initdisplay: libqlalloc succeeded, q=%p", (void*)q);
 
 	/* Allocate Display structure */
 	disp = malloc(sizeof(Display));
@@ -403,6 +405,14 @@ android_initdisplay(void (*error)(Display*, char*))
 	disp->bufp = disp->buf;
 	disp->qlock = q;
 
+	LOGI("android_initdisplay: qlock=%p, about to lock", (void*)q);
+
+	/* Lock the display before returning - this matches the behavior expected by Display_allocate
+	 * which expects initdisplay to leave the lock held */
+	libqlock(q);
+
+	LOGI("android_initdisplay: qlock locked successfully");
+
 	LOGI("android_initdisplay: Allocating color images");
 
 	/* NOTE: Don't lock the display during initialization since disp->local = 1
@@ -426,4 +436,152 @@ android_initdisplay(void (*error)(Display*, char*))
 
 	LOGI("android_initdisplay: Display created %dx%d", w, h);
 	return disp;
+}
+
+/*
+ * Wrapper functions for android_main.c compatibility
+ * These bridge the gap between the NativeActivity interface and the graphics system
+ */
+
+/* Global app state for wrappers */
+static struct android_app* g_app_state = nil;
+static int g_surface_width = 0;
+static int g_surface_height = 0;
+
+/* Initialize the display and OpenGL ES */
+int
+win_init(struct android_app* app)
+{
+	EGLint w, h;
+	EGLint num_configs;
+	EGLConfig config;
+	EGLint context_attribs[] = {
+		EGL_CONTEXT_CLIENT_VERSION, 2,
+		EGL_NONE
+	};
+	EGLint config_attribs[] = {
+		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+		EGL_BLUE_SIZE, 8,
+		EGL_GREEN_SIZE, 8,
+		EGL_RED_SIZE, 8,
+		EGL_ALPHA_SIZE, 8,
+		EGL_NONE
+	};
+
+	LOGI("win_init: Starting");
+
+	g_app_state = app;
+
+	/* Check if EGL is already initialized */
+	if(g_display != EGL_NO_DISPLAY && g_surface != EGL_NO_SURFACE) {
+		eglQuerySurface(g_display, g_surface, EGL_WIDTH, &w);
+		eglQuerySurface(g_display, g_surface, EGL_HEIGHT, &h);
+		g_surface_width = (int)w;
+		g_surface_height = (int)h;
+		LOGI("win_init: EGL already initialized %dx%d", g_surface_width, g_surface_height);
+		return 0;
+	}
+
+	/* Initialize EGL */
+	g_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+	if(g_display == EGL_NO_DISPLAY) {
+		LOGE("win_init: eglGetDisplay failed");
+		return -1;
+	}
+
+	if(!eglInitialize(g_display, NULL, NULL)) {
+		LOGE("win_init: eglInitialize failed");
+		return -1;
+	}
+
+	if(!eglChooseConfig(g_display, config_attribs, &config, 1, &num_configs) || num_configs == 0) {
+		LOGE("win_init: eglChooseConfig failed");
+		eglTerminate(g_display);
+		g_display = EGL_NO_DISPLAY;
+		return -1;
+	}
+
+	g_surface = eglCreateWindowSurface(g_display, config, app->window, NULL);
+	if(g_surface == EGL_NO_SURFACE) {
+		LOGE("win_init: eglCreateWindowSurface failed");
+		eglTerminate(g_display);
+		g_display = EGL_NO_DISPLAY;
+		return -1;
+	}
+
+	g_context = eglCreateContext(g_display, config, EGL_NO_CONTEXT, context_attribs);
+	if(g_context == EGL_NO_CONTEXT) {
+		LOGE("win_init: eglCreateContext failed");
+		eglDestroySurface(g_display, g_surface);
+		eglTerminate(g_display);
+		g_surface = EGL_NO_SURFACE;
+		g_display = EGL_NO_DISPLAY;
+		return -1;
+	}
+
+	if(!eglMakeCurrent(g_display, g_surface, g_surface, g_context)) {
+		LOGE("win_init: eglMakeCurrent failed");
+		eglDestroyContext(g_display, g_context);
+		eglDestroySurface(g_display, g_surface);
+		eglTerminate(g_display);
+		g_context = EGL_NO_CONTEXT;
+		g_surface = EGL_NO_SURFACE;
+		g_display = EGL_NO_DISPLAY;
+		return -1;
+	}
+
+	/* Get surface dimensions */
+	eglQuerySurface(g_display, g_surface, EGL_WIDTH, &w);
+	eglQuerySurface(g_display, g_surface, EGL_HEIGHT, &h);
+	g_surface_width = (int)w;
+	g_surface_height = (int)h;
+
+	LOGI("win_init: EGL initialized %dx%d", g_surface_width, g_surface_height);
+	return 0;
+}
+
+/* Clean up display resources */
+void
+win_cleanup(void)
+{
+	LOGI("win_cleanup: Cleaning up");
+
+	if(g_display != EGL_NO_DISPLAY) {
+		eglMakeCurrent(g_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+		if(g_context != EGL_NO_CONTEXT) {
+			eglDestroyContext(g_display, g_context);
+			g_context = EGL_NO_CONTEXT;
+		}
+		if(g_surface != EGL_NO_SURFACE) {
+			eglDestroySurface(g_display, g_surface);
+			g_surface = EGL_NO_SURFACE;
+		}
+		eglTerminate(g_display);
+		g_display = EGL_NO_DISPLAY;
+	}
+
+	g_app_state = nil;
+	g_surface_width = 0;
+	g_surface_height = 0;
+}
+
+/* Handle surface resize */
+void
+win_resize(int width, int height)
+{
+	LOGI("win_resize: %dx%d", width, height);
+	g_surface_width = width;
+	g_surface_height = height;
+	/* flushmemscreen will handle the actual rendering */
+}
+
+/* Swap buffers and render */
+void
+win_swap(void)
+{
+	/* flushmemscreen is called by draw operations, just swap EGL buffers here */
+	if(g_display != EGL_NO_DISPLAY && g_surface != EGL_NO_SURFACE) {
+		eglSwapBuffers(g_display, g_surface);
+	}
 }

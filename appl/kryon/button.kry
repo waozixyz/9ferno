@@ -1,25 +1,29 @@
-
+// Kryon Button Example
+// Demonstrates button with callbacks and Tk-compatible styling
 
 @limbo
-handleClickLimbo: fn() {
-    sys->print("Hello from Limbo+Kryon!\n");
+handleClick: fn() {
+    sys->print("Button clicked!\n");
 };
 @end
 
 Window {
-  title = "Interactive Button Demo"
-  width = 600
-  height = 400
-  background = "#191919"
+    title = "Button Demo"
+    width = 600
+    height = 400
+    bg = "#191919"
 
-  Center {
-    Button {
-      text = "Click Me!"
-      width = 150
-      height = 50
-      color = "pink"
-      background = "#404080"
-      onClick = handleClickLimbo
+    Center {
+        Button {
+            text = "Click Me!"
+            fg = "pink"
+            bg = "#404080"
+            font = "Helvetica 14 bold"
+            padx = 20
+            pady = 10
+            relief = "raised"
+            borderwidth = 2
+            onClick = handleClick
+        }
     }
-  }
 }

@@ -1,4 +1,4 @@
-implement Sh;
+implement Sh, Shellbuiltin;
 
 include "sys.m";
 	sys: Sys;

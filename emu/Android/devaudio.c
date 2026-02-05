@@ -5,6 +5,7 @@
 
 #include <SLES/OpenSLES.h>
 #include <SLES/OpenSLES_Android.h>
+#include <android/log.h>
 
 #include "dat.h"
 #include "fns.h"
@@ -144,7 +145,7 @@ create_player(void)
 	SLDataSink audioSnk = {&loc_outmix, NULL};
 
 	const SLInterfaceID ids[1] = {SL_IID_BUFFERQUEUE};
-	const SLBoolean req[1] = {SL_BOOLEAN_TRUE};
+	const SLboolean req[1] = {SL_BOOLEAN_TRUE};
 
 	SLresult result = (*audio.engine)->CreateAudioPlayer(audio.engine,
 		&audio.playerObject, &audioSrc, &audioSnk,

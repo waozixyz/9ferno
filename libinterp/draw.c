@@ -391,11 +391,43 @@ Display_allocate(void *fp)
 
 	R2R(r, display->image->r);
 	dd->drawdisplay.image = allocdrawimage(dd, r, display->image->chan, display->image, 0, 0);
-	R2R(r, display->white->r);
-	dd->drawdisplay.black = allocdrawimage(dd, r, display->black->chan, display->black, 1, 0);
-	dd->drawdisplay.white = allocdrawimage(dd, r, display->white->chan, display->white, 1, 0);
-	dd->drawdisplay.opaque = allocdrawimage(dd, r, display->opaque->chan, display->opaque, 1, 0);
-	dd->drawdisplay.transparent = allocdrawimage(dd, r, display->transparent->chan, display->transparent, 1, 0);
+
+	/* Handle nil color images - use fallback to display->image */
+	if(display->white != nil) {
+		R2R(r, display->white->r);
+		dd->drawdisplay.white = allocdrawimage(dd, r, display->white->chan, display->white, 1, 0);
+	} else {
+		/* Fallback: use display->image as white */
+		dd->drawdisplay.white = allocdrawimage(dd, r, display->image->chan, display->image, 1, 0);
+		print("Display_allocate: warning - white color not available, using image as fallback\n");
+	}
+
+	if(display->black != nil) {
+		R2R(r, display->black->r);
+		dd->drawdisplay.black = allocdrawimage(dd, r, display->black->chan, display->black, 1, 0);
+	} else {
+		/* Fallback: use display->image as black */
+		dd->drawdisplay.black = allocdrawimage(dd, r, display->image->chan, display->image, 1, 0);
+		print("Display_allocate: warning - black color not available, using image as fallback\n");
+	}
+
+	if(display->opaque != nil) {
+		R2R(r, display->opaque->r);
+		dd->drawdisplay.opaque = allocdrawimage(dd, r, display->opaque->chan, display->opaque, 1, 0);
+	} else {
+		/* Fallback: reuse white as opaque */
+		dd->drawdisplay.opaque = dd->drawdisplay.white;
+		print("Display_allocate: warning - opaque color not available, using white as fallback\n");
+	}
+
+	if(display->transparent != nil) {
+		R2R(r, display->transparent->r);
+		dd->drawdisplay.transparent = allocdrawimage(dd, r, display->transparent->chan, display->transparent, 1, 0);
+	} else {
+		/* Fallback: reuse black as transparent */
+		dd->drawdisplay.transparent = dd->drawdisplay.black;
+		print("Display_allocate: warning - transparent color not available, using black as fallback\n");
+	}
 
 	/* don't call unlockdisplay because the qlock was left up by initdisplay */
 	libqunlock(display->qlock);

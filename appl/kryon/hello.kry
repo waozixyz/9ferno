@@ -1,32 +1,13 @@
-// Kryon Hello World Example
-// A simple button that prints a message when clicked
-
-@limbo
-handleClick: fn() {
-    sys->print("Hello from Kryon!\n");
-};
-@end
-
 Window {
     title = "Hello World"
     width = 400
     height = 300
+    bg = "#191919"
 
-
-    Container {
-        posX = 200
-        posY = 100
-        width = 200
-        height = 100
-        background = "#191970"
-        borderColor = "#0099FF"
-        borderWidth = 2
-        contentAlignment = "center"
-
-        Text {
+    Center {
+        Label {
             text = "Hello World"
-            color = "yellow"
-            background = "#191970"
+            fg = "#ffffff"
         }
     }
 }

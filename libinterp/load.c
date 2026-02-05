@@ -638,6 +638,8 @@ newmod(char *s)
 {
 	Module *m;
 
+	print("newmod: creating module '%s'\n", s);
+
 	m = malloc(sizeof(Module));
 	if(m == nil)
 		error(exNomem);
@@ -652,6 +654,7 @@ newmod(char *s)
 	m->link = modules;
 	modules = m;
 	m->pctab = nil;
+	print("newmod: created module at m=%p, m->path='%s', m->name='%s'\n", m, m->path, m->name);
 	return m;
 }
 
@@ -660,11 +663,16 @@ lookmod(char *s)
 {
 	Module *m;
 
-	for(m = modules; m != nil; m = m->link)
+	print("lookmod: searching for '%s'\n", s);
+	for(m = modules; m != nil; m = m->link) {
+		print("lookmod: checking m->path='%s', m=%p\n", m->path, m);
 		if(strcmp(s, m->path) == 0) {
+			print("lookmod: FOUND module '%s' at %p\n", s, m);
 			m->ref++;
 			return m;
 		}
+	}
+	print("lookmod: module '%s' NOT FOUND in module list\n", s);
 	return nil;
 }
 

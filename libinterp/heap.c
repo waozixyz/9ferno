@@ -42,9 +42,9 @@ freeptrs(void *v, Type *t)
 	while(p < ep) {
 		c = *p;
 		if(c != 0) {
-			if(BIT(c, 0) && (x = w[7]) != H) destroy(x);
+ 			if(BIT(c, 0) && (x = w[7]) != H) destroy(x);
 			if(BIT(c, 1) && (x = w[6]) != H) destroy(x);
-			if(BIT(c, 2) && (x = w[5]) != H) destroy(x);
+ 			if(BIT(c, 2) && (x = w[5]) != H) destroy(x);
 			if(BIT(c, 3) && (x = w[4]) != H) destroy(x);
 			if(BIT(c, 4) && (x = w[3]) != H) destroy(x);
 			if(BIT(c, 5) && (x = w[2]) != H) destroy(x);
@@ -216,14 +216,11 @@ destroy(void *v)
 	Heap *h;
 	Type *t;
 
-	if(v == H || v == nil)
+	if(v == H)
 		return;
 
 	h = D2H(v);
-	if(h == nil)
-		return;
-
-	/* D2B consistency check removed - causing crashes during mcall cleanup */
+	{ Bhdr *b; D2B(b, h); }		/* consistency check */
 
 	if(--h->ref > 0 || gchalt > 64) 	/* Protect 'C' thread stack */
 		return;
@@ -233,13 +230,11 @@ destroy(void *v)
 	t = h->t;
 	if(t != nil) {
 		gclock();
-		if(t->free != nil)
-			t->free(h, 0);
+		t->free(h, 0);
 		gcunlock();
 		freetype(t);
 	}
-	if(heapmem != nil)
-		poolfree(heapmem, h);
+	poolfree(heapmem, h);
 }
 
 Type*
@@ -282,8 +277,7 @@ freetype(Type *t)
 	if(t == nil || --t->ref > 0)
 		return;
 
-	if(t->initialize != nil)
-		free(t->initialize);
+	free(t->initialize);
 	free(t);
 }
 
@@ -373,7 +367,6 @@ nheap(int n)
 	if(h == nil)
 		error(exHeap);
 
-	memset(h, 0, sizeof(Heap)+n);  /* Zero all memory including padding */
 	h->t = nil;
 	h->ref = 1;
 	h->color = mutator;
@@ -392,11 +385,11 @@ heapz(Type *t)
 	if(h == nil)
 		error(exHeap);
 
-	memset(h, 0, sizeof(Heap)+t->size);  /* Zero entire allocation including Heap header */
 	h->t = t;
 	t->ref++;
 	h->ref = 1;
 	h->color = mutator;
+	memset(H2D(void*, h), 0, t->size);
 	if(t->np)
 		initmem(t, H2D(void*, h));
 	if(heapmonitor != nil)
@@ -413,7 +406,6 @@ heap(Type *t)
 	if(h == nil)
 		error(exHeap);
 
-	memset(h, 0, sizeof(Heap)+t->size);  /* Zero entire allocation including Heap header */
 	h->t = t;
 	t->ref++;
 	h->ref = 1;

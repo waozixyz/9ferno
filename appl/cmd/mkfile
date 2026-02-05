@@ -1,18 +1,87 @@
 <../../mkconfig
 
-# Commands - build all .b files automatically
-
 DISBIN=$ROOT/dis
 
-all:V:
-	sh build-all.sh
+DIRS=\
+	asm\
+	auth\
+	auxi\
+	dbm\
+	disk\
+	fs\
+	games\
+	install\
+	ip\
+	kryon\
+	lego\
+	limbo\
+	mash\
+	mk\
+	mpc\
+	ndb\
+	sh\
+	spki\
+	usb\
+	zip\
 
-install:V:	all
-	sh install-all.sh
+# Build rule for .b files
+%.dis:	%.b
+	limbo -I$ROOT/module -gw $stem.b
 
-clean:V:
-	find . -name '*.dis' -delete
-	find . -name '*.sbl' -delete
+all:V:	all-$SHELLTYPE
 
-nuke:V:	clean
-	find $DISBIN -name '*.dis' -delete 2>/dev/null || true
+all-rc all-nt:V:
+	limbo -I$ROOT/module -gw *.b
+	for(i in $DIRS){
+		@{builtin cd $i && mk $MKFLAGS all}
+	}
+
+all-sh:V:
+	limbo -I$ROOT/module -gw *.b
+	for i in $DIRS
+	do
+		(cd $i && mk $MKFLAGS all) || test ! -e $i
+	done
+
+install:V:	install-$SHELLTYPE
+
+install-rc install-nt:V:	all
+	for(i in $DIRS){
+		@{builtin cd $i && mk $MKFLAGS install}
+	}
+
+install-sh:V:	all
+	for i in $DIRS
+	do
+		(cd $i && mk $MKFLAGS install) || test ! -e $i
+	done
+
+clean:V:	clean-$SHELLTYPE
+
+clean-rc clean-nt:V:
+	rm -f *.dis *.sbl
+	for(i in $DIRS){
+		@{builtin cd $i && mk $MKFLAGS clean}
+	}
+
+clean-sh:V:
+	rm -f *.dis *.sbl
+	for i in $DIRS
+	do
+		(cd $i && mk $MKFLAGS clean) || test ! -e $i
+	done
+
+nuke:V:	nuke-$SHELLTYPE
+
+nuke-rc nuke-nt:V:	clean
+	rm -f $DISBIN/*.dis
+	for(i in $DIRS){
+		@{builtin cd $i && mk $MKFLAGS nuke}
+	}
+
+nuke-sh:V:	clean
+	rm -f $DISBIN/*.dis
+	for i in $DIRS
+	do
+		(cd $i && mk $MKFLAGS nuke) || test ! -e $i
+	done

@@ -1,18 +1,30 @@
 <../../../mkconfig
 
-# Windowing applications
-
 DISBIN=$ROOT/dis/wm
 
 MODULES=\
 	wm.m\
 	wmsrv.m\
 
-all:V:
-	sh build-all.sh
+# Build rule for .b files
+%.dis:	%.b
+	limbo -I$ROOT/module -gw $stem.b
 
-install:V:	all
-	sh install-all.sh
+all:V:
+	limbo -I$ROOT/module -gw *.b
+
+install:V:	install-$SHELLTYPE
+
+install-rc install-nt:V:	all
+	for(i in *.dis){
+		cp $i $DISBIN/$i
+	}
+
+install-sh:V:	all
+	for i in *.dis
+	do
+		cp $i $DISBIN/$i
+	done
 
 clean:V:
 	rm -f *.dis *.sbl

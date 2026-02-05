@@ -8,7 +8,7 @@ include "ast.m";
 
 program_create(): ref Program
 {
-    return ref Program (nil, nil, nil, nil);
+    return ref Program (nil, nil, nil, nil, nil);
 }
 
 var_decl_create(name: string, typ: string, init: ref Value): ref VarDecl
@@ -153,6 +153,21 @@ program_set_app(prog: ref Program, app: ref AppDecl)
     prog.app = app;
 }
 
+program_add_reactive_fn(prog: ref Program, rfn: ref ReactiveFunction)
+{
+    if (prog == nil || rfn == nil)
+        return;
+
+    if (prog.reactive_fns == nil) {
+        prog.reactive_fns = rfn;
+    } else {
+        r := prog.reactive_fns;
+        while (r.next != nil)
+            r = r.next;
+        r.next = rfn;
+    }
+}
+
 # List building functions
 
 property_list_add(listhd: ref Property, item: ref Property): ref Property
@@ -267,4 +282,45 @@ value_get_ident(v: ref Value): string
     Identifier => return iv.ident_val;
     * => return "";
     }
+}
+
+value_create_fn_call(fn_name: string): ref Value
+{
+    return ref Value.FnCall (Ast->VALUE_FN_CALL, fn_name);
+}
+
+# Reactive function helper functions
+
+reactivefn_create(name: string, expr: string, interval: int): ref ReactiveFunction
+{
+    return ref ReactiveFunction (name, expr, interval, nil);
+}
+
+reactivefn_list_add(head: ref ReactiveFunction, rfn: ref ReactiveFunction): ref ReactiveFunction
+{
+    if (head == nil)
+        return rfn;
+
+    r := head;
+    while (r.next != nil)
+        r = r.next;
+    r.next = rfn;
+    return head;
+}
+
+reactivebinding_create(widget_path: string, property_name: string, fn_name: string): ref ReactiveBinding
+{
+    return ref ReactiveBinding (widget_path, property_name, fn_name, nil);
+}
+
+reactivebinding_list_add(head: ref ReactiveBinding, binding: ref ReactiveBinding): ref ReactiveBinding
+{
+    if (head == nil)
+        return binding;
+
+    r := head;
+    while (r.next != nil)
+        r = r.next;
+    r.next = binding;
+    return head;
 }

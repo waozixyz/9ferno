@@ -1,3 +1,6 @@
+# Prompt string input library
+# This file is meant to be included, not compiled standalone
+
 RAWON_STR := "*";
 
 RAWON : con 0;

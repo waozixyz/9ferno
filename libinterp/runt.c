@@ -399,6 +399,8 @@ builtinmod(char *name, void *vr, int rlen)
 	Module *m;
 	Link *l;
 
+	print("builtinmod: registering '%s', rlen=%d\n", name, rlen);
+
 	m = newmod(name);
 	if(rlen == 0){
 		while(r->name){
@@ -410,6 +412,7 @@ builtinmod(char *name, void *vr, int rlen)
 	l = m->ext = (Link*)malloc((rlen+1)*sizeof(Link));
 	if(l == nil){
 		freemod(m);
+		print("builtinmod ERROR: malloc failed for '%s'\n", name);
 		return nil;
 	}
 	while(r->name) {
@@ -419,6 +422,7 @@ builtinmod(char *name, void *vr, int rlen)
 		l++;
 	}
 	l->name = nil;
+	print("builtinmod: '%s' registered at m=%p, m->path='%s'\n", name, m, m->path);
 	return m;
 }
 
