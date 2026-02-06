@@ -661,6 +661,8 @@ android_initdisplay(void (*error)(Display*, char*))
 		disp->white->repl = 1;
 		disp->white->r = Rect(0, 0, 1, 1);
 		disp->white->clipr = disp->white->r;
+		disp->white->screen = nil;  /* Color images are not screen images */
+		disp->white->next = nil;
 	}
 
 	/* Create black image */
@@ -674,6 +676,8 @@ android_initdisplay(void (*error)(Display*, char*))
 		disp->black->repl = 1;
 		disp->black->r = Rect(0, 0, 1, 1);
 		disp->black->clipr = disp->black->r;
+		disp->black->screen = nil;
+		disp->black->next = nil;
 	}
 
 	/* Create opaque image (white) */
@@ -687,6 +691,8 @@ android_initdisplay(void (*error)(Display*, char*))
 		disp->opaque->repl = 1;
 		disp->opaque->r = Rect(0, 0, 1, 1);
 		disp->opaque->clipr = disp->opaque->r;
+		disp->opaque->screen = nil;
+		disp->opaque->next = nil;
 	}
 
 	/* Create transparent image (black) */
@@ -700,6 +706,8 @@ android_initdisplay(void (*error)(Display*, char*))
 		disp->transparent->repl = 1;
 		disp->transparent->r = Rect(0, 0, 1, 1);
 		disp->transparent->clipr = disp->transparent->r;
+		disp->transparent->screen = nil;
+		disp->transparent->next = nil;
 	}
 
 	LOGI("android_initdisplay: Display created %dx%d", w, h);

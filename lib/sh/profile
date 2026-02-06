@@ -52,6 +52,6 @@ fn kr {
         base := `{basename $input .kry};
         @ /dis/kryon.dis $input;
         @ /dis/limbo.dis $base.b;
-        @ /dis/sh.dis $base.dis;
+        @ ./$base.dis;
     }
 }
