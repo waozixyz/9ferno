@@ -85,7 +85,7 @@ Codegen: adt {
 
 Codegen.create(output: ref Sys->FD, module_name: string): ref Codegen
 {
-    return ref Codegen(module_name, output, nil, 0, nil, 400, 300, nil);
+    return ref Codegen(module_name, output, nil, 0, nil, 0, 0, nil);
 }
 
 # Module info for code generation
@@ -104,6 +104,36 @@ fmt_error(p: ref Parser, msg: string): string
 {
     lineno := lexer->get_lineno(p.l);
     return sys->sprint("line %d: %s", lineno, msg);
+}
+
+# Determine if we should add a space between current and next token
+should_add_space(curr_toktype: int, next_toktype: int): int
+{
+    # No space after opening delimiters
+    if (curr_toktype == '(' || curr_toktype == '[' || curr_toktype == '{' ||
+        curr_toktype == ':')
+        return 0;
+
+    # No space before closing delimiters or separators
+    if (next_toktype == ')' || next_toktype == ']' || next_toktype == '}' ||
+        next_toktype == ',' || next_toktype == ';' || next_toktype == '.' ||
+        next_toktype == ':' || next_toktype == '[')
+        return 0;
+
+    # No space around the arrow operator (critical fix)
+    if (curr_toktype == Lexer->TOKEN_ARROW || next_toktype == Lexer->TOKEN_ARROW)
+        return 0;
+
+    # No space before opening parenthesis (function calls)
+    if (next_toktype == '(')
+        return 0;
+
+    # No space after dot operator
+    if (curr_toktype == '.')
+        return 0;
+
+    # Default: add space for keywords and identifiers
+    return 1;
 }
 
 # Parse a use statement: use module_name [alias]
@@ -135,7 +165,8 @@ parse_use_statement(p: ref Parser): (ref ModuleImport, string)
     return (ast->moduleimport_create(module_name, alias), nil);
 }
 
-# Parse a reactive function declaration: name: fn() = expression every N
+# Parse a reactive function declaration: name: fn() = expression @ N
+# OR: name: fn() = expression @ varname
 parse_reactive_function(p: ref Parser): (ref ReactiveFunction, string)
 {
     # Parse name (before ":")
@@ -176,43 +207,239 @@ parse_reactive_function(p: ref Parser): (ref ReactiveFunction, string)
         return (nil, err6);
     }
 
-    # Parse expression (until "every")
+    # Parse expression until "@"
     expr := "";
-    while (p.peek().toktype != Lexer->TOKEN_EVERY) {
+    while (p.peek().toktype != Lexer->TOKEN_AT) {
         tok := p.next();
 
         # Build expression from tokens
         if (tok.toktype == Lexer->TOKEN_STRING) {
-            expr += tok.string_val;
+            expr += "\"" + tok.string_val + "\"";
         } else if (tok.toktype == Lexer->TOKEN_IDENTIFIER) {
             expr += tok.string_val;
         } else if (tok.toktype == Lexer->TOKEN_NUMBER) {
             expr += sys->sprint("%bd", tok.number_val);
+        } else if (tok.toktype == Lexer->TOKEN_ARROW) {
+            expr += "->";
         } else if (tok.toktype >= 32 && tok.toktype <= 126) {
             # Single char token
             expr += sys->sprint("%c", tok.toktype);
         }
 
-        # Add space for next token
-        if (p.peek().toktype != Lexer->TOKEN_EVERY) {
+        # Add space for next token (with proper spacing rules)
+        next_tok := p.peek();
+        if (next_tok.toktype != Lexer->TOKEN_AT &&
+            should_add_space(tok.toktype, next_tok.toktype)) {
             expr += " ";
         }
     }
 
-    # Expect "every"
-    (tok5, err7) := p.expect(Lexer->TOKEN_EVERY);
+    # Expect "@"
+    (tok5, err7) := p.expect(Lexer->TOKEN_AT);
     if (err7 != nil) {
         return (nil, err7);
     }
 
-    # Parse interval number
-    interval_tok := p.next();
-    if (interval_tok.toktype != Lexer->TOKEN_NUMBER) {
-        return (nil, fmt_error(p, "expected number after 'every'"));
-    }
-    interval := int interval_tok.number_val;
+    # Check what follows @
+    next_tok := p.peek();
 
-    return (ast->reactivefn_create(name, expr, interval), nil);
+    if (next_tok.toktype == Lexer->TOKEN_NUMBER) {
+        # Time-based: @ 1000
+        p.next();
+        interval := int next_tok.number_val;
+        return (ast->reactivefn_create(name, expr, interval, nil), nil);
+    } else if (next_tok.toktype == Lexer->TOKEN_IDENTIFIER) {
+        # Var-based: @ var1, var2
+        watch_vars: ref Ast->WatchVar = nil;
+        while (p.peek().toktype == Lexer->TOKEN_IDENTIFIER) {
+            var_tok := p.next();
+            wv := ast->watchvar_create(var_tok.string_val);
+            watch_vars = ast->watchvar_list_add(watch_vars, wv);
+
+            # Check for comma
+            if (p.peek().toktype == ',')
+                p.next();
+        }
+        return (ast->reactivefn_create(name, expr, 0, watch_vars), nil);
+    }
+
+    return (nil, fmt_error(p, "expected number or identifier after '@'"));
+}
+
+# Parse a var declaration: var name = expr
+parse_var_decl(p: ref Parser): (ref Ast->VarDecl, string)
+{
+    # Expect: var name = expr
+    # Already have 'var' token
+    name_tok := p.next();
+    if (name_tok.toktype != Lexer->TOKEN_IDENTIFIER)
+        return (nil, fmt_error(p, "expected variable name after 'var'"));
+
+    name := name_tok.string_val;
+
+    # Expect '='
+    (eq_tok, err) := p.expect('=');
+    if (err != nil)
+        return (nil, err);
+
+    # Parse initialization expression
+    init_expr := "";
+    while (p.peek().toktype != Lexer->TOKEN_ENDINPUT &&
+           p.peek().toktype != Lexer->TOKEN_ENDINPUT &&
+           p.peek().toktype != '\n') {
+        tok := p.next();
+        if (tok.toktype == Lexer->TOKEN_STRING) {
+            init_expr += "\"" + tok.string_val + "\"";
+        } else if (tok.toktype == Lexer->TOKEN_IDENTIFIER) {
+            init_expr += tok.string_val;
+        } else if (tok.toktype == Lexer->TOKEN_NUMBER) {
+            init_expr += sys->sprint("%bd", tok.number_val);
+        } else if (tok.toktype == Lexer->TOKEN_ARROW) {
+            init_expr += "->";
+        } else if (tok.toktype >= 32 && tok.toktype <= 126) {
+            init_expr += sys->sprint("%c", tok.toktype);
+        }
+        next_tok := p.peek();
+        if (next_tok.toktype != Lexer->TOKEN_ENDINPUT &&
+            next_tok.toktype != Lexer->TOKEN_ENDINPUT &&
+            next_tok.toktype != '\n' &&
+            should_add_space(tok.toktype, next_tok.toktype)) {
+            init_expr += " ";
+        }
+    }
+
+    return (ast->var_decl_create(name, "string", init_expr, nil), nil);
+}
+
+# Parse a regular function declaration: fn name() { ... }
+# OR: fn name(): type = expression @ interval
+parse_function_decl(p: ref Parser): (ref Ast->FunctionDecl, string)
+{
+    # Expect: fn name() { ... } or fn name(): type = expression @ interval
+    # Already have 'fn' token
+
+    # Parse function name
+    name_tok := p.next();
+    if (name_tok.toktype != Lexer->TOKEN_IDENTIFIER)
+        return (nil, fmt_error(p, "expected function name after 'fn'"));
+
+    name := name_tok.string_val;
+
+    # Expect "()"
+    (tok1, err1) := p.expect('(');
+    if (err1 != nil)
+        return (nil, err1);
+
+    (tok2, err2) := p.expect(')');
+    if (err2 != nil)
+        return (nil, err2);
+
+    # Check for optional return type: : string
+    return_type := "";
+    if (p.peek().toktype == ':') {
+        p.next();  # consume ':'
+        type_tok := p.next();
+        if (type_tok.toktype != Lexer->TOKEN_IDENTIFIER)
+            return (nil, fmt_error(p, "expected return type identifier after ':'"));
+
+        return_type = type_tok.string_val;
+    }
+
+    # Check for inline body (=) or block body ({)
+    if (p.peek().toktype == '=') {
+        # Inline function: fn name(): type = expression [@ interval]
+        p.next();  # consume '='
+
+        # Parse expression until end of line or @
+        body := "";
+        while (p.peek().toktype != Lexer->TOKEN_ENDINPUT &&
+               p.peek().toktype != Lexer->TOKEN_AT &&
+               p.peek().toktype != '\n') {
+            tok := p.next();
+
+            # Build expression from tokens
+            if (tok.toktype == Lexer->TOKEN_STRING) {
+                body += "\"" + limbo_escape(tok.string_val) + "\"";
+            } else if (tok.toktype == Lexer->TOKEN_IDENTIFIER) {
+                body += tok.string_val;
+            } else if (tok.toktype == Lexer->TOKEN_NUMBER) {
+                body += sys->sprint("%bd", tok.number_val);
+            } else if (tok.toktype == Lexer->TOKEN_ARROW) {
+                body += "->";
+            } else if (tok.toktype >= 32 && tok.toktype <= 126) {
+                body += sys->sprint("%c", tok.toktype);
+            }
+
+            # Add space for next token (if not end, with proper spacing rules)
+            next_tok := p.peek();
+            if (next_tok.toktype != Lexer->TOKEN_ENDINPUT &&
+                next_tok.toktype != Lexer->TOKEN_AT &&
+                next_tok.toktype != '\n' &&
+                should_add_space(tok.toktype, next_tok.toktype)) {
+                body += " ";
+            }
+        }
+
+        # Check for reactive binding
+        interval := 0;
+        if (p.peek().toktype == Lexer->TOKEN_AT) {
+            p.next();  # consume '@'
+            num_tok := p.next();
+            if (num_tok.toktype != Lexer->TOKEN_NUMBER)
+                return (nil, fmt_error(p, "expected number after '@'"));
+
+            interval = int num_tok.number_val;
+        }
+
+        # Create function declaration with inline body
+        fn_decl := ast->functiondecl_create(name, body);
+        fn_decl.return_type = return_type;
+        fn_decl.reactive_interval = interval;
+        return (fn_decl, nil);
+    }
+
+    # Block body: fn name() { ... }
+    (tok3, err3) := p.expect('{');
+    if (err3 != nil)
+        return (nil, err3);
+
+    # Parse function body until "}"
+    body := "";
+    brace_count := 1;
+
+    while (brace_count > 0 && p.peek().toktype != Lexer->TOKEN_ENDINPUT) {
+        tok := p.next();
+
+        if (tok.toktype == '{')
+            brace_count++;
+        else if (tok.toktype == '}')
+            brace_count--;
+        else {
+            # Add token content to body
+            if (tok.toktype == Lexer->TOKEN_STRING) {
+                body += "\"" + limbo_escape(tok.string_val) + "\"";
+            } else if (tok.toktype == Lexer->TOKEN_IDENTIFIER) {
+                body += tok.string_val;
+            } else if (tok.toktype == Lexer->TOKEN_NUMBER) {
+                body += sys->sprint("%bd", tok.number_val);
+            } else if (tok.toktype == Lexer->TOKEN_ARROW) {
+                body += "->";
+            } else if (tok.toktype >= 32 && tok.toktype <= 126) {
+                body += sys->sprint("%c", tok.toktype);
+            }
+
+            next_tok := p.peek();
+            if (next_tok.toktype != '}' && next_tok.toktype != '{' &&
+                next_tok.toktype != Lexer->TOKEN_ENDINPUT &&
+                should_add_space(tok.toktype, next_tok.toktype)) {
+                body += " ";
+            }
+        }
+    }
+
+    fn_decl := ast->functiondecl_create(name, body);
+    fn_decl.return_type = return_type;
+    return (fn_decl, nil);
 }
 
 # Parse a value (STRING, NUMBER, COLOR, IDENTIFIER, FN_CALL)
@@ -628,66 +855,6 @@ parse_widget(p: ref Parser): (ref Widget, string)
     }
 }
 
-# Parse a single code block or reactive function
-parse_code_block(p: ref Parser): (ref Ast->CodeBlock, string)
-{
-    tok := p.next();
-
-    code := "";
-    typ := 0;
-
-    case tok.toktype {
-    Lexer->TOKEN_LIMBO =>
-        typ = Ast->CODE_LIMBO;
-        code = tok.string_val;
-
-    Lexer->TOKEN_TCL =>
-        typ = Ast->CODE_TCL;
-        code = tok.string_val;
-
-    Lexer->TOKEN_LUA =>
-        typ = Ast->CODE_LUA;
-        code = tok.string_val;
-
-    * =>
-        return (nil, fmt_error(p, "expected code block (@limbo, @tcl, or @lua)"));
-    }
-
-    return (ast->code_block_create(typ, code), nil);
-}
-
-# Parse multiple code blocks and reactive functions
-parse_code_blocks(p: ref Parser): (ref Ast->CodeBlock, string)
-{
-    first: ref Ast->CodeBlock = nil;
-    last: ref Ast->CodeBlock = nil;
-
-    while (1) {
-        tok := p.peek();
-
-        if (tok.toktype != Lexer->TOKEN_LIMBO &&
-            tok.toktype != Lexer->TOKEN_TCL &&
-            tok.toktype != Lexer->TOKEN_LUA) {
-            break;
-        }
-
-        (cb, err) := parse_code_block(p);
-        if (err != nil) {
-            return (nil, err);
-        }
-
-        if (first == nil) {
-            first = cb;
-            last = cb;
-        } else {
-            last.next = cb;
-            last = cb;
-        }
-    }
-
-    return (first, nil);
-}
-
 # Parse app declaration
 parse_app_decl(p: ref Parser): (ref Ast->AppDecl, string)
 {
@@ -729,7 +896,7 @@ parse_program(p: ref Parser): (ref Program, string)
 {
     prog := ast->program_create();
 
-    # Parse use statements at the top (before code blocks)
+    # Parse use statements at the top
     while (p.peek().toktype == Lexer->TOKEN_IDENTIFIER) {
         # Peek ahead to check if it's "use"
         tok := p.peek();
@@ -744,132 +911,53 @@ parse_program(p: ref Parser): (ref Program, string)
         }
     }
 
-    # Parse optional code blocks
-    tok := p.peek();
-    if (tok.toktype == Lexer->TOKEN_LIMBO ||
-        tok.toktype == Lexer->TOKEN_TCL ||
-        tok.toktype == Lexer->TOKEN_LUA) {
+    # Parse var declarations and reactive functions
+    while (p.peek().toktype != Lexer->TOKEN_ENDINPUT) {
+        tok := p.peek();
 
-        (code_blocks, err) := parse_code_blocks(p);
-        if (err != nil) {
-            return (nil, err);
-        }
-        prog.code_blocks = code_blocks;
-
-        # Extract reactive functions from @limbo code blocks
-        cb := prog.code_blocks;
-        while (cb != nil) {
-            if (cb.cbtype == Ast->CODE_LIMBO && cb.code != nil) {
-                code := cb.code;
-
-                # Look for reactive function pattern: name: fn() = expr every N
-                (nlines, lines_list) := sys->tokenize(code, "\n");
-                lines := array[nlines] of string;
-                i := 0;
-                for (ll := lines_list; ll != nil; ll = tl ll) {
-                    lines[i++] = hd ll;
-                }
-
-                for (kline := 0; kline < nlines; kline++) {
-                    line := lines[kline];
-
-                    # Check if line contains "every"
-                    (nwords, words_list) := sys->tokenize(line, " ");
-                    if (nwords >= 2) {
-                        # Convert list to array for easier access
-                        words := array[nwords] of string;
-                        j := 0;
-                        for (wl := words_list; wl != nil; wl = tl wl) {
-                            words[j++] = hd wl;
-                        }
-
-                        # Look for "every" keyword
-                        found_every := 0;
-                        for (j = 0; j < nwords; j++) {
-                            if (words[j] == "every") {
-                                found_every = 1;
-                                break;
-                            }
-                        }
-
-                        if (found_every) {
-                            # This is a reactive function declaration
-                            # Parse it manually
-                            # Format: name: fn() = expression every N
-
-                            # Find name (before ":")
-                            colon := 0;
-                            for (k := 0; k < len line; k++) {
-                                if (line[k] == ':') {
-                                    colon = k;
-                                    break;
-                                }
-                            }
-
-                            if (colon > 0) {
-                                name := line[0:colon];
-
-                                # Find "every"
-                                every_pos := 0;
-                                for (k := 0; k < len line; k++) {
-                                    if (k + 5 <= len line &&
-                                        line[k:k+5] == "every") {
-                                        every_pos = k;
-                                        break;
-                                    }
-                                }
-
-                                if (every_pos > 0) {
-                                    # Extract expression (after "=" and before "every")
-                                    eq_pos := colon + 1;
-                                    while (eq_pos < every_pos && line[eq_pos] != '=')
-                                        eq_pos++;
-
-                                    if (eq_pos < every_pos) {
-                                        expr_start := eq_pos + 1;
-                                        while (expr_start < every_pos &&
-                                               (line[expr_start] == ' ' || line[expr_start] == '\t'))
-                                            expr_start++;
-
-                                        expr_end := every_pos - 1;
-                                        while (expr_end > expr_start &&
-                                               (line[expr_end] == ' ' || line[expr_end] == '\t'))
-                                            expr_end--;
-
-                                        expr := line[expr_start:expr_end + 1];
-
-                                        # Extract interval
-                                        interval_str := line[every_pos + 5:];
-                                        while (len interval_str > 0 &&
-                                               (interval_str[0] == ' ' || interval_str[0] == '\t'))
-                                            interval_str = interval_str[1:];
-
-                                        interval := 0;
-                                        (nintv, intv_list) := sys->tokenize(interval_str, " ");
-                                        if (nintv > 0) {
-                                            interval = int big hd intv_list;
-                                        }
-
-                                        # Create reactive function
-                                        rfn := ast->reactivefn_create(name, expr, interval);
-                                        ast->program_add_reactive_fn(prog, rfn);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+        # Check for regular function declaration
+        if (tok.toktype == Lexer->TOKEN_FN) {
+            p.next();  # consume 'fn'
+            (fd, err) := parse_function_decl(p);
+            if (err != nil) {
+                return (nil, err);
             }
-            cb = cb.next;
+            ast->program_add_function_decl(prog, fd);
+        }
+        # Check for var declaration
+        else if (tok.toktype == Lexer->TOKEN_VAR) {
+            p.next();  # consume 'var'
+            (vd, err) := parse_var_decl(p);
+            if (err != nil) {
+                return (nil, err);
+            }
+            ast->program_add_var(prog, vd);
+        }
+        # Check for Window (app declaration) - must come before IDENTIFIER check
+        else if (tok.toktype == Lexer->TOKEN_WINDOW) {
+            (app, err) := parse_app_decl(p);
+            if (err != nil) {
+                return (nil, err);
+            }
+            prog.app = app;
+            break;  # Window is the last thing in the file
+        }
+        # Check for reactive function (identifier followed by ':')
+        else if (tok.toktype == Lexer->TOKEN_IDENTIFIER) {
+            # Peek ahead to check if next token is ':'
+            if (p.peek().toktype == ':') {
+                (rfn, err) := parse_reactive_function(p);
+                if (err != nil) {
+                    return (nil, err);
+                }
+                ast->program_add_reactive_fn(prog, rfn);
+            } else {
+                return (nil, fmt_error(p, "expected function declaration, var declaration, reactive function, or Window"));
+            }
+        } else {
+            return (nil, fmt_error(p, "expected function declaration, var declaration, reactive function, or Window"));
         }
     }
-
-    # Parse app declaration
-    (app, err) := parse_app_decl(p);
-    if (err != nil) {
-        return (nil, err);
-    }
-    prog.app = app;
 
     return (prog, nil);
 }
@@ -877,6 +965,22 @@ parse_program(p: ref Parser): (ref Program, string)
 # =========================================================================
 # Code generation functions
 # =========================================================================
+
+# Re-escape a string literal for Limbo source code
+limbo_escape(s: string): string
+{
+    res := "";
+    for(i := 0; i < len s; i++){
+        case s[i] {
+            '\n' => res += "\\n";
+            '\t' => res += "\\t";
+            '\"' => res += "\\\"";
+            '\\' => res += "\\\\";
+            * => res[len res] = s[i];
+        }
+    }
+    return res;
+}
 
 # Escape a string for Tk
 escape_tk_string(s: string): string
@@ -1312,6 +1416,20 @@ collect_widget_commands(cg: ref Codegen, prog: ref Program): string
     return generate_widget_list(cg, prog.app.body, ".", 1);
 }
 
+# Generate variable declarations
+generate_var_decls(cg: ref Codegen, prog: ref Program): string
+{
+    vds := prog.vars;
+
+    while (vds != nil) {
+        sys->fprint(cg.output, "%s: string;\n", vds.name);
+        vds = vds.next;
+    }
+
+    sys->fprint(cg.output, "\n");
+    return nil;
+}
+
 # Generate reactive function variables only (no functions)
 generate_reactive_vars(cg: ref Codegen, prog: ref Program): string
 {
@@ -1342,63 +1460,153 @@ generate_reactive_funcs(cg: ref Codegen, prog: ref Program): string
         name := rfns.name;
         expr := rfns.expression;
 
-        # Check if this function has any widget bindings (needs t parameter)
-        needs_t := 0;
-        bindings := cg.reactive_bindings;
-        while (bindings != nil) {
-            (widget_path, prop_name, fn_name) := hd bindings;
-            if (fn_name == name) {
-                needs_t = 1;
-                break;
-            }
-            bindings = tl bindings;
-        }
-
-        # Generate update function signature with or without t parameter
-        if (needs_t) {
-            sys->fprint(cg.output, "%s_update(t: ref Tk->Toplevel)\n", name);
-        } else {
-            sys->fprint(cg.output, "%s_update()\n", name);
-        }
-        sys->fprint(cg.output, "{\n");
-        sys->fprint(cg.output, "    %s = %s;\n", name, expr);
-
-        # Generate widget updates for all bindings
-        # Reverse bindings to get correct order
-        all_bindings := cg.reactive_bindings;
-        rev_bindings: list of (string, string, string) = nil;
-        while (all_bindings != nil) {
-            rev_bindings = hd all_bindings :: rev_bindings;
-            all_bindings = tl all_bindings;
-        }
-
-        while (rev_bindings != nil) {
-            (widget_path, prop_name, fn_name) := hd rev_bindings;
-            if (fn_name == name) {
-                tk_prop := map_property_name(prop_name);
-                if (tk_prop != "") {
-                    sys->fprint(cg.output, "    tk->cmd(t, \"%s configure -%s {\"+%s+\"};update\");\n",
-                        widget_path, tk_prop, name);
+        if (rfns.interval > 0) {
+            # Time-based: generate _update() function
+            needs_t := 0;
+            bindings := cg.reactive_bindings;
+            while (bindings != nil) {
+                (widget_path, prop_name, fn_name) := hd bindings;
+                if (fn_name == name) {
+                    needs_t = 1;
+                    break;
                 }
+                bindings = tl bindings;
             }
-            rev_bindings = tl rev_bindings;
-        }
 
-        sys->fprint(cg.output, "}\n\n");
+            if (needs_t) {
+                sys->fprint(cg.output, "%s_update(t: ref Tk->Toplevel)\n", name);
+            } else {
+                sys->fprint(cg.output, "%s_update()\n", name);
+            }
+            sys->fprint(cg.output, "{\n");
+            sys->fprint(cg.output, "    %s = %s;\n", name, expr);
+
+            # Generate widget updates
+            all_bindings := cg.reactive_bindings;
+            rev_bindings: list of (string, string, string) = nil;
+            while (all_bindings != nil) {
+                rev_bindings = hd all_bindings :: rev_bindings;
+                all_bindings = tl all_bindings;
+            }
+
+            while (rev_bindings != nil) {
+                (widget_path, prop_name, fn_name) := hd rev_bindings;
+                if (fn_name == name) {
+                    tk_prop := map_property_name(prop_name);
+                    if (tk_prop != "") {
+                        sys->fprint(cg.output, "    tk->cmd(t, \"%s configure -%s {\"+%s+\"};update\");\n",
+                            widget_path, tk_prop, name);
+                    }
+                }
+                rev_bindings = tl rev_bindings;
+            }
+
+            sys->fprint(cg.output, "}\n\n");
+        } else {
+            # Var-based: generate update function for each watched variable
+            wv := rfns.watch_vars;
+            while (wv != nil) {
+                sys->fprint(cg.output, "%s_on_%s_change(t: ref Tk->Toplevel)\n", name, wv.name);
+                sys->fprint(cg.output, "{\n");
+                sys->fprint(cg.output, "    %s = %s;\n", name, expr);
+
+                # Update widgets
+                bindings := cg.reactive_bindings;
+                while (bindings != nil) {
+                    (widget_path, prop_name, fn_name) := hd bindings;
+                    if (fn_name == name) {
+                        tk_prop := map_property_name(prop_name);
+                        if (tk_prop != "") {
+                            sys->fprint(cg.output, "    tk->cmd(t, \"%s configure -%s {\"+%s+\"};update\");\n",
+                                widget_path, tk_prop, name);
+                        }
+                    }
+                    bindings = tl bindings;
+                }
+
+                sys->fprint(cg.output, "}\n\n");
+                wv = wv.next;
+            }
+        }
 
         rfns = rfns.next;
+    }
+
+    # Also generate update functions for FunctionDecl with reactive_interval
+    fd := prog.function_decls;
+    while (fd != nil) {
+        if (fd.reactive_interval > 0) {
+            # Time-based: generate _update() function
+            needs_t := 0;
+            bindings := cg.reactive_bindings;
+            while (bindings != nil) {
+                (widget_path, prop_name, fn_name) := hd bindings;
+                if (fn_name == fd.name) {
+                    needs_t = 1;
+                    break;
+                }
+                bindings = tl bindings;
+            }
+
+            if (needs_t) {
+                sys->fprint(cg.output, "%s_update(t: ref Tk->Toplevel)\n", fd.name);
+            } else {
+                sys->fprint(cg.output, "%s_update()\n", fd.name);
+            }
+            sys->fprint(cg.output, "{\n");
+
+            # Generate widget updates for FunctionDecl
+            # For functions, we call the function directly in the widget update
+            all_bindings := cg.reactive_bindings;
+            rev_bindings: list of (string, string, string) = nil;
+            while (all_bindings != nil) {
+                rev_bindings = hd all_bindings :: rev_bindings;
+                all_bindings = tl all_bindings;
+            }
+
+            while (rev_bindings != nil) {
+                (widget_path, prop_name, fn_name) := hd rev_bindings;
+                if (fn_name == fd.name) {
+                    tk_prop := map_property_name(prop_name);
+                    if (tk_prop != "") {
+                        sys->fprint(cg.output, "    tk->cmd(t, \"%s configure -%s {\"+%s()+\"};update\");\n",
+                            widget_path, tk_prop, fd.name);
+                    }
+                }
+                rev_bindings = tl rev_bindings;
+            }
+
+            sys->fprint(cg.output, "}\n\n");
+        }
+        fd = fd.next;
     }
 
     return nil;
 }
 
+# Check if program has time-based reactive functions
+has_time_based_reactive_functions(prog: ref Program): int
+{
+    rfns := prog.reactive_fns;
+    while (rfns != nil) {
+        if (rfns.interval > 0)
+            return 1;
+        rfns = rfns.next;
+    }
+    # Also check FunctionDecl for reactive_interval
+    fd := prog.function_decls;
+    while (fd != nil) {
+        if (fd.reactive_interval > 0)
+            return 1;
+        fd = fd.next;
+    }
+    return 0;
+}
+
 # Generate reactive timer function
 generate_reactive_timer(cg: ref Codegen, prog: ref Program): string
 {
-    if (prog.reactive_fns == nil)
-        return nil;
-
-    # Find the minimum interval
+    # Find the minimum interval among time-based functions
     min_interval := 1000000;
     rfns := prog.reactive_fns;
 
@@ -1406,6 +1614,14 @@ generate_reactive_timer(cg: ref Codegen, prog: ref Program): string
         if (rfns.interval > 0 && rfns.interval < min_interval)
             min_interval = rfns.interval;
         rfns = rfns.next;
+    }
+
+    # Also check FunctionDecl for reactive_interval
+    fd := prog.function_decls;
+    while (fd != nil) {
+        if (fd.reactive_interval > 0 && fd.reactive_interval < min_interval)
+            min_interval = fd.reactive_interval;
+        fd = fd.next;
     }
 
     if (min_interval >= 1000000)
@@ -1427,7 +1643,7 @@ generate_reactive_timer(cg: ref Codegen, prog: ref Program): string
 # Check if program has reactive functions
 has_reactive_functions(prog: ref Program): int
 {
-    return (prog.reactive_fns != nil);
+    return has_time_based_reactive_functions(prog);
 }
 
 # Generate module load statements in init
@@ -1523,68 +1739,14 @@ generate_prologue(cg: ref Codegen, prog: ref Program): string
     buf += sys->sprint("%s: module\n{\n", cg.module_name);
     buf += "    init:\tfn(ctxt: ref Draw->Context, argv: list of string);\n";
 
-    # Add function signatures from code blocks (excluding reactive functions)
-    cb := prog.code_blocks;
-    while (cb != nil) {
-        if (cb.cbtype == Ast->CODE_LIMBO && cb.code != nil) {
-            # Try to extract function name from code like "funcName: fn(...) {"
-            code := cb.code;
-            colon := 0;
-
-            # Find colon
-            for (j := 0; j < len code; j++) {
-                if (code[j] == ':') {
-                    colon = j;
-                    break;
-                }
-            }
-
-            if (colon > 0 && colon + 4 < len code) {
-                if (code[colon+1] == ' ' && code[colon+2] == 'f' &&
-                    code[colon+3] == 'n' && code[colon+4] == '(') {
-
-                    # Check if this line contains "every" - if so, skip it (reactive function)
-                    line_start := colon;
-                    while (line_start > 0 && code[line_start] != '\n')
-                        line_start--;
-
-                    line_end := colon + 5;
-                    while (line_end < len code && code[line_end] != '\n')
-                        line_end++;
-
-                    is_reactive := 0;
-                    if (line_end < len code) {
-                        line := code[line_start : line_end];
-                        for (k := 0; k < len line - 4; k++) {
-                            if (line[k:k+5] == "every") {
-                                is_reactive = 1;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (!is_reactive) {
-                        # Find function name start
-                        start := colon - 1;
-                        while (start > 0 && (code[start] == '\n' || code[start] == ' ' || code[start] == '\t'))
-                            start--;
-
-                        # Find end of name
-                        name_end := start;
-                        while (name_end > 0 && code[name_end] != '\n' &&
-                               code[name_end] != ' ' && code[name_end] != '\t')
-                            name_end--;
-
-                        func_name := code[name_end+1 : start+1];
-
-                        if (len func_name > 0 && func_name[0] >= 'a' && func_name[0] <= 'z') {
-                            buf += sys->sprint("    %s: fn();\n", func_name);
-                        }
-                    }
-                }
-            }
-        }
-        cb = cb.next;
+    # Add function signatures from function_decls
+    fd := prog.function_decls;
+    while (fd != nil) {
+        if (fd.return_type != nil && fd.return_type != "")
+            buf += sys->sprint("    %s: fn(): %s;\n", fd.name, fd.return_type);
+        else
+            buf += sys->sprint("    %s: fn();\n", fd.name);
+        fd = fd.next;
     }
 
     buf += "};\n";
@@ -1598,140 +1760,53 @@ generate_prologue(cg: ref Codegen, prog: ref Program): string
 # Generate code blocks (Limbo functions)
 generate_code_blocks(cg: ref Codegen, prog: ref Program): string
 {
-    cb := prog.code_blocks;
+    # Generate function bodies from function_decls
+    fd := prog.function_decls;
 
-    while (cb != nil) {
-        if (cb.cbtype == Ast->CODE_LIMBO && cb.code != nil) {
-            code := cb.code;
-            current := 0;
+    while (fd != nil) {
+        if (fd.return_type != nil && fd.return_type != "")
+            sys->fprint(cg.output, "\n%s(): %s\n", fd.name, fd.return_type);
+        else
+            sys->fprint(cg.output, "\n%s()\n", fd.name);
+        sys->fprint(cg.output, "{\n");
 
-            # Process each function in the code block
-            while (current < len code) {
-                # Skip leading whitespace
-                while (current < len code &&
-                       (code[current] == '\n' || code[current] == ' ' || code[current] == '\t'))
-                    current++;
+        if (fd.body != nil && fd.body != "") {
+            # Start the first line with indentation
+            sys->fprint(cg.output, "    ");
 
-                if (current >= len code)
-                    break;
-
-                # Check for reactive function declaration (contains "every")
-                # Skip these as they're handled separately
-                line_start := current;
-                while (current < len code && code[current] != '\n')
-                    current++;
-
-                if (current > line_start) {
-                    line := code[line_start : current];
-                    # Check if this line is a reactive function (contains "every")
-                    has_every := 0;
-                    for (j := 0; j < len line - 4; j++) {
-                        if (line[j:j+5] == "every") {
-                            has_every = 1;
-                            break;
-                        }
-                    }
-                    if (has_every) {
-                        # Skip this line - it's a reactive function
-                        current++;
-                        continue;
-                    }
-                }
-
-                # Reset current to parse the line
-                current = line_start;
-
-                # Find function name (ends with ':')
-                colon := current;
-                found := 0;
-
-                while (colon < len code) {
-                    if (code[colon] == ':') {
-                        found = 1;
-                        break;
-                    }
-                    colon++;
-                }
-
-                if (!found)
-                    break;
-
-                # Find opening brace
-                lbrace := colon;
-                while (lbrace < len code && code[lbrace] != '{')
-                    lbrace++;
-
-                if (lbrace >= len code)
-                    break;
-
-                # Find matching closing brace
-                rbrace := lbrace + 1;
-                brace_count := 1;
-
-                while (rbrace < len code && brace_count > 0) {
-                    if (code[rbrace] == '{')
-                        brace_count++;
-                    else if (code[rbrace] == '}')
-                        brace_count--;
-                    rbrace++;
-                }
-
-                if (brace_count != 0)
-                    break;
-
-                # Extract function name
-                name_start := current;
-                while (name_start < colon &&
-                       (code[name_start] == '\n' || code[name_start] == ' ' || code[name_start] == '\t'))
-                    name_start++;
-
-                func_name := code[name_start : colon];
-
-                # Output function
-                sys->fprint(cg.output, "\n%s()\n", func_name);
-
-                # Find body start
-                body_start := lbrace + 1;
-                while (body_start < rbrace &&
-                       (code[body_start] == '\n' || code[body_start] == ' ' || code[body_start] == '\t'))
-                    body_start++;
-
-                if (rbrace - 1 > body_start) {
-                    body_end := rbrace - 2;
-                    while (body_end > body_start &&
-                           (code[body_end] == '\n' || code[body_end] == ' ' || code[body_end] == '\t'))
-                        body_end--;
-
-                    body := code[body_start : body_end + 1];
-
-                    # Indent body
-                    sys->fprint(cg.output, "{\n");
-
-                    (count, lines) := sys->tokenize(body, "\n");
-                    line_list := lines;
-
-                    while (line_list != nil) {
-                        line := hd line_list;
-                        if (line != "")
-                            sys->fprint(cg.output, "    %s\n", line);
-                        else
-                            sys->fprint(cg.output, "\n");
-                        line_list = tl line_list;
-                    }
-
-                    sys->fprint(cg.output, "}\n");
-                }
-
-                current = rbrace;
-
-                # Skip semicolons and whitespace
-                while (current < len code &&
-                       (code[current] == ';' || code[current] == '\n' ||
-                        code[current] == ' ' || code[current] == '\t'))
-                    current++;
+            # If function has a return type, add 'return' keyword
+            if (fd.return_type != nil && fd.return_type != "") {
+                sys->fprint(cg.output, "return ");
             }
+
+            # Print body character by character to handle newlines correctly
+            # without mangling string literals or collapsing multiple newlines.
+            for (i := 0; i < len fd.body; i++) {
+                c := fd.body[i];
+                sys->fprint(cg.output, "%c", c);
+
+                # If we encounter a newline that isn't the very last char,
+                # add the indentation for the next line.
+                if (c == '\n' && i < (len fd.body - 1)) {
+                    sys->fprint(cg.output, "    ");
+                }
+            }
+
+            # If function has a return type, ensure body ends with semicolon
+            if (fd.return_type != nil && fd.return_type != "") {
+                last_char := fd.body[len fd.body - 1];
+                if (last_char != '\n' && last_char != ';') {
+                    sys->fprint(cg.output, ";");
+                }
+            }
+
+            # Ensure the block ends with a newline
+            if (fd.body[len fd.body - 1] != '\n')
+                sys->fprint(cg.output, "\n");
         }
-        cb = cb.next;
+
+        sys->fprint(cg.output, "}\n");
+        fd = fd.next;
     }
 
     return nil;
@@ -1756,8 +1831,11 @@ generate_tkcmds_array(cg: ref Codegen): string
         rev = tl rev;
     }
 
-    # Add pack propagate before update to prevent window from auto-sizing
-    sys->fprint(cg.output, "    \"pack propagate . 0\",\n");
+    # Only add pack propagate if width/height were explicitly set
+    # This prevents the window from auto-sizing when dimensions are specified
+    if (cg.width > 0 || cg.height > 0) {
+        sys->fprint(cg.output, "    \"pack propagate . 0\",\n");
+    }
     sys->fprint(cg.output, "    \"update\"\n");
     sys->fprint(cg.output, "};\n\n");
 
@@ -1850,6 +1928,14 @@ generate_init(cg: ref Codegen, prog: ref Program): string
     }
     sys->fprint(cg.output, "\n");
 
+    # Initialize var declarations
+    vds := prog.vars;
+    while (vds != nil) {
+        if (vds.init_expr != nil)
+            sys->fprint(cg.output, "    %s = %s;\n", vds.name, vds.init_expr);
+        vds = vds.next;
+    }
+
     # Create command channel if we have callbacks
     has_callbacks := (cg.callbacks != nil);
 
@@ -1871,24 +1957,52 @@ generate_init(cg: ref Codegen, prog: ref Program): string
         # Call initial reactive update
         rfns := prog.reactive_fns;
         while (rfns != nil) {
-            # Check if this function has widget bindings
-            has_bindings := 0;
-            bindings := cg.reactive_bindings;
-            while (bindings != nil) {
-                (widget_path, prop_name, fn_name) := hd bindings;
-                if (fn_name == rfns.name) {
-                    has_bindings = 1;
-                    break;
+            # Only initialize time-based reactive functions
+            if (rfns.interval > 0) {
+                # Check if this function has widget bindings
+                has_bindings := 0;
+                bindings := cg.reactive_bindings;
+                while (bindings != nil) {
+                    (widget_path, prop_name, fn_name) := hd bindings;
+                    if (fn_name == rfns.name) {
+                        has_bindings = 1;
+                        break;
+                    }
+                    bindings = tl bindings;
                 }
-                bindings = tl bindings;
-            }
 
-            if (has_bindings) {
-                sys->fprint(cg.output, "    %s_update(t);\n", rfns.name);
-            } else {
-                sys->fprint(cg.output, "    %s_update();\n", rfns.name);
+                if (has_bindings) {
+                    sys->fprint(cg.output, "    %s_update(t);\n", rfns.name);
+                } else {
+                    sys->fprint(cg.output, "    %s_update();\n", rfns.name);
+                }
             }
             rfns = rfns.next;
+        }
+
+        # Also call initial update for FunctionDecl with reactive_interval
+        fd := prog.function_decls;
+        while (fd != nil) {
+            if (fd.reactive_interval > 0) {
+                # Check if this function has widget bindings
+                has_bindings := 0;
+                bindings := cg.reactive_bindings;
+                while (bindings != nil) {
+                    (widget_path, prop_name, fn_name) := hd bindings;
+                    if (fn_name == fd.name) {
+                        has_bindings = 1;
+                        break;
+                    }
+                    bindings = tl bindings;
+                }
+
+                if (has_bindings) {
+                    sys->fprint(cg.output, "    %s_update(t);\n", fd.name);
+                } else {
+                    sys->fprint(cg.output, "    %s_update();\n", fd.name);
+                }
+            }
+            fd = fd.next;
         }
         sys->fprint(cg.output, "\n");
     }
@@ -1919,29 +2033,57 @@ generate_init(cg: ref Codegen, prog: ref Program): string
             cbs = tl cbs;
         }
 
-        # Add tick case for reactive functions
+        # Add tick case for time-based reactive functions
         if (has_reactive) {
             sys->fprint(cg.output, "        <-tick =>\n");
             rfns := prog.reactive_fns;
             while (rfns != nil) {
-                # Check if this function has widget bindings
-                has_bindings := 0;
-                bindings := cg.reactive_bindings;
-                while (bindings != nil) {
-                    (widget_path, prop_name, fn_name) := hd bindings;
-                    if (fn_name == rfns.name) {
-                        has_bindings = 1;
-                        break;
+                # Only call time-based reactive functions
+                if (rfns.interval > 0) {
+                    # Check if this function has widget bindings
+                    has_bindings := 0;
+                    bindings := cg.reactive_bindings;
+                    while (bindings != nil) {
+                        (widget_path, prop_name, fn_name) := hd bindings;
+                        if (fn_name == rfns.name) {
+                            has_bindings = 1;
+                            break;
+                        }
+                        bindings = tl bindings;
                     }
-                    bindings = tl bindings;
-                }
 
-                if (has_bindings) {
-                    sys->fprint(cg.output, "            %s_update(t);\n", rfns.name);
-                } else {
-                    sys->fprint(cg.output, "            %s_update();\n", rfns.name);
+                    if (has_bindings) {
+                        sys->fprint(cg.output, "            %s_update(t);\n", rfns.name);
+                    } else {
+                        sys->fprint(cg.output, "            %s_update();\n", rfns.name);
+                    }
                 }
                 rfns = rfns.next;
+            }
+
+            # Also call update for FunctionDecl with reactive_interval
+            fd := prog.function_decls;
+            while (fd != nil) {
+                if (fd.reactive_interval > 0) {
+                    # Check if this function has widget bindings
+                    has_bindings := 0;
+                    bindings := cg.reactive_bindings;
+                    while (bindings != nil) {
+                        (widget_path, prop_name, fn_name) := hd bindings;
+                        if (fn_name == fd.name) {
+                            has_bindings = 1;
+                            break;
+                        }
+                        bindings = tl bindings;
+                    }
+
+                    if (has_bindings) {
+                        sys->fprint(cg.output, "            %s_update(t);\n", fd.name);
+                    } else {
+                        sys->fprint(cg.output, "            %s_update();\n", fd.name);
+                    }
+                }
+                fd = fd.next;
             }
         }
 
@@ -1959,29 +2101,57 @@ generate_init(cg: ref Codegen, prog: ref Program): string
         sys->fprint(cg.output, "        s = <-wmctl =>\n");
         sys->fprint(cg.output, "            tkclient->wmctl(t, s);\n");
 
-        # Add tick case for reactive functions
+        # Add tick case for time-based reactive functions
         if (has_reactive) {
             sys->fprint(cg.output, "        <-tick =>\n");
             rfns := prog.reactive_fns;
             while (rfns != nil) {
-                # Check if this function has widget bindings
-                has_bindings := 0;
-                bindings := cg.reactive_bindings;
-                while (bindings != nil) {
-                    (widget_path, prop_name, fn_name) := hd bindings;
-                    if (fn_name == rfns.name) {
-                        has_bindings = 1;
-                        break;
+                # Only call time-based reactive functions
+                if (rfns.interval > 0) {
+                    # Check if this function has widget bindings
+                    has_bindings := 0;
+                    bindings := cg.reactive_bindings;
+                    while (bindings != nil) {
+                        (widget_path, prop_name, fn_name) := hd bindings;
+                        if (fn_name == rfns.name) {
+                            has_bindings = 1;
+                            break;
+                        }
+                        bindings = tl bindings;
                     }
-                    bindings = tl bindings;
-                }
 
-                if (has_bindings) {
-                    sys->fprint(cg.output, "            %s_update(t);\n", rfns.name);
-                } else {
-                    sys->fprint(cg.output, "            %s_update();\n", rfns.name);
+                    if (has_bindings) {
+                        sys->fprint(cg.output, "            %s_update(t);\n", rfns.name);
+                    } else {
+                        sys->fprint(cg.output, "            %s_update();\n", rfns.name);
+                    }
                 }
                 rfns = rfns.next;
+            }
+
+            # Also call update for FunctionDecl with reactive_interval
+            fd := prog.function_decls;
+            while (fd != nil) {
+                if (fd.reactive_interval > 0) {
+                    # Check if this function has widget bindings
+                    has_bindings := 0;
+                    bindings := cg.reactive_bindings;
+                    while (bindings != nil) {
+                        (widget_path, prop_name, fn_name) := hd bindings;
+                        if (fn_name == fd.name) {
+                            has_bindings = 1;
+                            break;
+                        }
+                        bindings = tl bindings;
+                    }
+
+                    if (has_bindings) {
+                        sys->fprint(cg.output, "            %s_update(t);\n", fd.name);
+                    } else {
+                        sys->fprint(cg.output, "            %s_update();\n", fd.name);
+                    }
+                }
+                fd = fd.next;
             }
         }
 
@@ -2027,6 +2197,12 @@ generate(output: string, prog: ref Program, module_name: string): string
     }
 
     # Generate module variables (time, tpid) after module declaration
+    err = generate_var_decls(cg, prog);
+    if (err != nil) {
+        fd = nil;
+        return err;
+    }
+
     err = generate_reactive_vars(cg, prog);
     if (err != nil) {
         fd = nil;

@@ -27,7 +27,7 @@ create_number_token(n: big, lineno: int): ref Token
 
 create(src: string, data: string): ref LexerObj
 {
-    return ref LexerObj (src, data, 0, 1, 0, 0, 0);
+    return ref LexerObj (src, data, 0, 1, 0);
 }
 
 get_lineno(l: ref LexerObj): int
@@ -94,10 +94,6 @@ skip_whitespace(l: ref LexerObj)
             next_char(l);
             continue;  # Restart loop to get next character
         } else if (c == '\n') {
-            if (l.in_code_block) {
-                # In code blocks, preserve newlines
-                return;
-            }
             next_char(l);
             continue;  # Restart loop to get next character
         } else {
@@ -208,11 +204,9 @@ read_color_literal(l: ref LexerObj): string
 # Check if identifier is a keyword
 check_keyword(id: string): int
 {
-    # Code blocks
-    if (id == "limbo") return TOKEN_LIMBO;
-    if (id == "tcl") return TOKEN_TCL;
-    if (id == "lua") return TOKEN_LUA;
-    if (id == "end") return TOKEN_END;
+    # Keywords
+    if (id == "var") return TOKEN_VAR;
+    if (id == "fn") return TOKEN_FN;
 
     # Widget types
     if (id == "Window") return TOKEN_WINDOW;
@@ -230,83 +224,8 @@ check_keyword(id: string): int
     if (id == "Column") return TOKEN_COLUMN;
     if (id == "Row") return TOKEN_ROW;
     if (id == "Center") return TOKEN_CENTER;
-    if (id == "every") return TOKEN_EVERY;
 
     return TOKEN_IDENTIFIER;
-}
-
-# Read a code block (@limbo/@tcl/@lua ... @end)
-read_code_block(l: ref LexerObj): ref Token
-{
-    code := "";
-    start_line := l.lineno;
-
-    while (l.pos < len l.src_data) {
-        c := peek_char(l);
-
-        # Check for @end
-        if (c == '@') {
-            next_char(l);  # consume @
-
-            # Check if next chars are "end"
-            if (l.pos + 2 < len l.src_data &&
-                (l.src_data[l.pos] == 'e' || l.src_data[l.pos] == 'E') &&
-                (l.src_data[l.pos+1] == 'n' || l.src_data[l.pos+1] == 'N') &&
-                (l.src_data[l.pos+2] == 'd' || l.src_data[l.pos+2] == 'D')) {
-
-                l.pos += 3;
-                l.column += 3;
-
-                # Skip rest of line
-                while (l.pos < len l.src_data && peek_char(l) != '\n')
-                    next_char(l);
-
-                l.in_code_block = 0;
-
-                tok := create_string_token(l.code_type, code, start_line);
-                return tok;
-            }
-
-            # Not @end, add @ to code
-            code[len code] = '@';
-        } else {
-            next_char(l);
-            code[len code] = c;
-        }
-
-        if (c == '\n') {
-            # Check next line for @end
-            skip_whitespace(l);
-            if (peek_char(l) == '@') {
-                next_char(l);  # consume @
-
-                if (l.pos + 2 < len l.src_data &&
-                    (l.src_data[l.pos] == 'e' || l.src_data[l.pos] == 'E') &&
-                    (l.src_data[l.pos+1] == 'n' || l.src_data[l.pos+1] == 'N') &&
-                    (l.src_data[l.pos+2] == 'd' || l.src_data[l.pos+2] == 'D')) {
-
-                    l.pos += 3;
-                    l.column += 3;
-
-                    l.in_code_block = 0;
-
-                    tok := create_string_token(l.code_type, code, start_line);
-                    return tok;
-                }
-
-                # Not @end, add newline and @ back
-                code[len code] = '\n';
-                code[len code] = '@';
-            } else {
-                code[len code] = '\n';
-            }
-        }
-    }
-
-    # Unterminated code block - return error token
-    tok := create_token(TOKEN_ENDINPUT, start_line);
-    tok.string_val = sys->sprint("unterminated code block at line %d", start_line);
-    return tok;
 }
 
 # Main lex function - returns next token
@@ -321,91 +240,23 @@ lex(l: ref LexerObj): ref Token
         return create_token(TOKEN_ENDINPUT, lineno);
     }
 
-    # Check for @ keyword/code block start
+    # @ symbol for reactive syntax
     if (c == '@') {
         next_char(l);  # consume @
-        c = peek_char(l);
-
-        # @limbo
-        if ((c == 'l' || c == 'L') && l.pos + 4 < len l.src_data) {
-            if ((l.src_data[l.pos] == 'l' || l.src_data[l.pos] == 'L') &&
-                (l.src_data[l.pos+1] == 'i' || l.src_data[l.pos+1] == 'I') &&
-                (l.src_data[l.pos+2] == 'm' || l.src_data[l.pos+2] == 'M') &&
-                (l.src_data[l.pos+3] == 'b' || l.src_data[l.pos+3] == 'B') &&
-                (l.src_data[l.pos+4] == 'o' || l.src_data[l.pos+4] == 'O')) {
-
-                l.pos += 5;
-                l.column += 5;
-
-                # Skip rest of line
-                while (l.pos < len l.src_data && peek_char(l) != '\n')
-                    next_char(l);
-
-                l.in_code_block = 1;
-                l.code_type = TOKEN_LIMBO;
-                return read_code_block(l);
-            }
-        }
-
-        # @tcl
-        if ((c == 't' || c == 'T') && l.pos + 2 < len l.src_data) {
-            if ((l.src_data[l.pos] == 't' || l.src_data[l.pos] == 'T') &&
-                (l.src_data[l.pos+1] == 'c' || l.src_data[l.pos+1] == 'C') &&
-                (l.src_data[l.pos+2] == 'l' || l.src_data[l.pos+2] == 'L')) {
-
-                l.pos += 3;
-                l.column += 3;
-
-                # Skip rest of line
-                while (l.pos < len l.src_data && peek_char(l) != '\n')
-                    next_char(l);
-
-                l.in_code_block = 1;
-                l.code_type = TOKEN_TCL;
-                return read_code_block(l);
-            }
-        }
-
-        # @lua
-        if ((c == 'l' || c == 'L') && l.pos + 2 < len l.src_data) {
-            if ((l.src_data[l.pos] == 'l' || l.src_data[l.pos] == 'L') &&
-                (l.src_data[l.pos+1] == 'u' || l.src_data[l.pos+1] == 'U') &&
-                (l.src_data[l.pos+2] == 'a' || l.src_data[l.pos+2] == 'A')) {
-
-                l.pos += 3;
-                l.column += 3;
-
-                # Skip rest of line
-                while (l.pos < len l.src_data && peek_char(l) != '\n')
-                    next_char(l);
-
-                l.in_code_block = 1;
-                l.code_type = TOKEN_LUA;
-                return read_code_block(l);
-            }
-        }
-
-        # @end
-        if ((c == 'e' || c == 'E') && l.pos + 2 < len l.src_data) {
-            if ((l.src_data[l.pos] == 'e' || l.src_data[l.pos] == 'E') &&
-                (l.src_data[l.pos+1] == 'n' || l.src_data[l.pos+1] == 'N') &&
-                (l.src_data[l.pos+2] == 'd' || l.src_data[l.pos+2] == 'D')) {
-
-                l.pos += 3;
-                l.column += 3;
-
-                # Skip rest of line
-                while (l.pos < len l.src_data && peek_char(l) != '\n')
-                    next_char(l);
-
-                return create_token(TOKEN_END, lineno);
-            }
-        }
-
-        # Just an @ by itself - return as character
-        tok := create_token('@', lineno);
-        return tok;
+        return create_token(TOKEN_AT, lineno);
     }
+
+    # Arrow operator ->
+    if (c == '-') {
+        next_char(l);  # Consume the '-'
+        if (peek_char(l) == '>') {
+            next_char(l);  # Consume the '>'
+            return create_token(TOKEN_ARROW, lineno);
+        }
+        # If it wasn't a '>', return the '-' as a single char token
+        return create_token('-', lineno);
+    }
+    
 
     # String literal
     if (c == '"') {
@@ -458,7 +309,6 @@ peek_token(l: ref LexerObj): ref Token
     saved_pos := l.pos;
     saved_lineno := l.lineno;
     saved_column := l.column;
-    saved_in_code_block := l.in_code_block;
 
     tok := lex(l);
 
@@ -466,7 +316,6 @@ peek_token(l: ref LexerObj): ref Token
     l.pos = saved_pos;
     l.lineno = saved_lineno;
     l.column = saved_column;
-    l.in_code_block = saved_in_code_block;
 
     return tok;
 }

@@ -51,3 +51,6 @@ extern	int	kiounit(int);
 extern	void	kwerrstr(char *, ...);
 extern	void	kgerrstr(char*, uint);
 extern	long	kchanio(void*, void*, int, int);
+
+/* Android-specific file system initialization */
+extern	void	android_fs_init(const char*, const char*);

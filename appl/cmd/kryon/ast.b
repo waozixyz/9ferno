@@ -8,12 +8,12 @@ include "ast.m";
 
 program_create(): ref Program
 {
-    return ref Program (nil, nil, nil, nil, nil, nil);
+    return ref Program (nil, nil, nil, nil, nil, nil, nil);
 }
 
-var_decl_create(name: string, typ: string, init: ref Value): ref VarDecl
+var_decl_create(name: string, typ: string, init_expr: string, init: ref Value): ref VarDecl
 {
-    return ref VarDecl (name, typ, init, nil);
+    return ref VarDecl (name, typ, init_expr, init, nil);
 }
 
 code_block_create(typ: int, code: string): ref CodeBlock
@@ -323,11 +323,42 @@ program_add_module_import(prog: ref Program, imp: ref ModuleImport)
     }
 }
 
+program_add_function_decl(prog: ref Program, fn_decl: ref FunctionDecl)
+{
+    if (prog == nil || fn_decl == nil)
+        return;
+
+    if (prog.function_decls == nil) {
+        prog.function_decls = fn_decl;
+    } else {
+        f := prog.function_decls;
+        while (f.next != nil)
+            f = f.next;
+        f.next = fn_decl;
+    }
+}
+
 # Reactive function helper functions
 
-reactivefn_create(name: string, expr: string, interval: int): ref ReactiveFunction
+watchvar_create(name: string): ref WatchVar
 {
-    return ref ReactiveFunction (name, expr, interval, nil);
+    return ref WatchVar (name, nil);
+}
+
+watchvar_list_add(head: ref WatchVar, wv: ref WatchVar): ref WatchVar
+{
+    if (head == nil)
+        return wv;
+    last := head;
+    while (last.next != nil)
+        last = last.next;
+    last.next = wv;
+    return head;
+}
+
+reactivefn_create(name: string, expr: string, interval: int, watch_vars: ref WatchVar): ref ReactiveFunction
+{
+    return ref ReactiveFunction (name, expr, interval, watch_vars, nil);
 }
 
 reactivefn_list_add(head: ref ReactiveFunction, rfn: ref ReactiveFunction): ref ReactiveFunction
@@ -356,5 +387,24 @@ reactivebinding_list_add(head: ref ReactiveBinding, binding: ref ReactiveBinding
     while (r.next != nil)
         r = r.next;
     r.next = binding;
+    return head;
+}
+
+# Regular function declaration helper functions
+
+functiondecl_create(name: string, body: string): ref FunctionDecl
+{
+    return ref FunctionDecl (name, body, "", 0, nil);
+}
+
+functiondecl_list_add(head: ref FunctionDecl, fn_decl: ref FunctionDecl): ref FunctionDecl
+{
+    if (head == nil)
+        return fn_decl;
+
+    f := head;
+    while (f.next != nil)
+        f = f.next;
+    f.next = fn_decl;
     return head;
 }

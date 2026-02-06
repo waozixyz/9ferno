@@ -1,0 +1,27 @@
+use daytime
+
+# Time-based reactive
+fn clock(): string = daytime->time()[0:19] @ 1000
+
+# Button callback
+fn incrementCount() {
+    count = count + 1
+}
+
+# Variable declarations
+var count = 0
+var first = "John"
+var last = "Doe"
+
+Window {
+    title = "Reactive Test"
+    Column {
+        Label { text = clock() }
+        Label { text = "Count: " + count }
+        Label { text = first + " " + last }
+        Button {
+            text = "+1"
+            onClick = incrementCount
+        }
+    }
+}

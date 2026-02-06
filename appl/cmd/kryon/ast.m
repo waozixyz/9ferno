@@ -81,6 +81,7 @@ Ast: module
     VarDecl: adt {
         name: string;
         typ: string;
+        init_expr: string;          # initialization expression as string
         init_value: ref Value;
         next: ref VarDecl;
     };
@@ -110,12 +111,28 @@ Ast: module
         body: ref Widget;
     };
 
+    # Watch variable ADT for variable-based reactivity
+    WatchVar: adt {
+        name: string;
+        next: ref WatchVar;
+    };
+
     # Reactive function ADT
     ReactiveFunction: adt {
         name: string;
         expression: string;
-        interval: int;
+        interval: int;              # 0 for var-based, >0 for time-based
+        watch_vars: ref WatchVar;   # list of variables to watch
         next: ref ReactiveFunction;
+    };
+
+    # Regular function declaration ADT (for callbacks)
+    FunctionDecl: adt {
+        name: string;
+        body: string;
+        return_type: string;          # return type annotation (e.g., "string")
+        reactive_interval: int;       # reactive binding interval (0 for non-reactive)
+        next: ref FunctionDecl;
     };
 
     # Reactive binding ADT (tracks widget -> reactive function relationships)
@@ -141,11 +158,12 @@ Ast: module
         app: ref AppDecl;
         reactive_fns: ref ReactiveFunction;
         module_imports: ref ModuleImport;
+        function_decls: ref FunctionDecl;  # regular function declarations
     };
 
     # AST construction functions
     program_create: fn(): ref Program;
-    var_decl_create: fn(name: string, typ: string, init: ref Value): ref VarDecl;
+    var_decl_create: fn(name: string, typ: string, init_expr: string, init: ref Value): ref VarDecl;
     code_block_create: fn(typ: int, code: string): ref CodeBlock;
     component_create: fn(name: string): ref ComponentDef;
     app_decl_create: fn(): ref AppDecl;
@@ -163,9 +181,17 @@ Ast: module
     moduleimport_create: fn(module_name: string, alias: string): ref ModuleImport;
     moduleimport_list_add: fn(head: ref ModuleImport, imp: ref ModuleImport): ref ModuleImport;
 
+    # Watch variable functions
+    watchvar_create: fn(name: string): ref WatchVar;
+    watchvar_list_add: fn(head: ref WatchVar, wv: ref WatchVar): ref WatchVar;
+
     # Reactive function functions
-    reactivefn_create: fn(name: string, expr: string, interval: int): ref ReactiveFunction;
+    reactivefn_create: fn(name: string, expr: string, interval: int, watch_vars: ref WatchVar): ref ReactiveFunction;
     reactivefn_list_add: fn(head: ref ReactiveFunction, rfn: ref ReactiveFunction): ref ReactiveFunction;
+
+    # Regular function declaration functions
+    functiondecl_create: fn(name: string, body: string): ref FunctionDecl;
+    functiondecl_list_add: fn(head: ref FunctionDecl, fn_decl: ref FunctionDecl): ref FunctionDecl;
     reactivebinding_create: fn(widget_path: string, property_name: string, fn_name: string): ref ReactiveBinding;
     reactivebinding_list_add: fn(head: ref ReactiveBinding, binding: ref ReactiveBinding): ref ReactiveBinding;
 
@@ -178,6 +204,7 @@ Ast: module
     program_set_app: fn(prog: ref Program, app: ref AppDecl);
     program_add_reactive_fn: fn(prog: ref Program, rfn: ref ReactiveFunction);
     program_add_module_import: fn(prog: ref Program, imp: ref ModuleImport);
+    program_add_function_decl: fn(prog: ref Program, fn_decl: ref FunctionDecl);
 
     # List building functions
     property_list_add: fn(listhd: ref Property, item: ref Property): ref Property;

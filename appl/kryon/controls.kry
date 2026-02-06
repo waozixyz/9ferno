@@ -1,31 +1,29 @@
 // Kryon Controls Demo
 // Shows all available widgets with Tk-compatible properties
 
-@limbo
-onButtonClick: fn() {
+fn onButtonClick() {
     sys->print("Button clicked\n");
-};
+}
 
-onCheckToggle: fn() {
+fn onCheckToggle() {
     sys->print("Checkbox toggled\n");
-};
+}
 
-onRadioSelect: fn() {
+fn onRadioSelect() {
     sys->print("Radio selected\n");
-};
+}
 
-onListSelect: fn() {
+fn onListSelect() {
     sys->print("List item selected\n");
-};
+}
 
-onScaleChange: fn() {
+fn onScaleChange() {
     sys->print("Scale changed\n");
-};
+}
 
-onEntryChange: fn() {
+fn onEntryChange() {
     sys->print("Entry changed\n");
-};
-@end
+}
 
 Window {
     title = "Kryon Controls Demo"

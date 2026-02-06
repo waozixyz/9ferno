@@ -8,9 +8,9 @@ Lexer: module
     TOKEN_NUMBER: con 2;
     TOKEN_COLOR: con 3;
     TOKEN_IDENTIFIER: con 4;
-    TOKEN_LIMBO: con 5;
-    TOKEN_TCL: con 6;
-    TOKEN_LUA: con 7;
+    TOKEN_AT: con 5;
+    TOKEN_VAR: con 6;
+    TOKEN_FN: con 7;
     TOKEN_WINDOW: con 8;
     TOKEN_FRAME: con 9;
     TOKEN_BUTTON: con 10;
@@ -26,8 +26,7 @@ Lexer: module
     TOKEN_COLUMN: con 20;
     TOKEN_ROW: con 21;
     TOKEN_CENTER: con 22;
-    TOKEN_END: con 23;
-    TOKEN_EVERY: con 24;
+    TOKEN_ARROW: con 23;
 
     # Token ADT - users need to access this
     Token: adt {
@@ -44,8 +43,6 @@ Lexer: module
         pos: int;
         lineno: int;
         column: int;
-        in_code_block: int;
-        code_type: int;
     };
 
     # Public interface - module-level functions

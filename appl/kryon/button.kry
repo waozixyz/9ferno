@@ -1,11 +1,9 @@
 // Kryon Button Example
 // Demonstrates button with callbacks and Tk-compatible styling
 
-@limbo
-handleClick: fn() {
+fn handleClick() {
     sys->print("Button clicked!\n");
-};
-@end
+}
 
 Window {
     title = "Button Demo"

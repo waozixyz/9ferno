@@ -4,6 +4,14 @@
 #include "kernel.h"
 #include "dynld.h"
 
+/* Android logging */
+#ifdef __ANDROID__
+#include <android/log.h>
+#define READMOD_LOG(...) __android_log_print(ANDROID_LOG_INFO, "TaijiOS-Readmod", __VA_ARGS__)
+#else
+#define READMOD_LOG(...)
+#endif
+
 static int debug = 0;
 
 Module*
@@ -16,6 +24,7 @@ readmod(char *path, Module *m, int sync)
 	u32 length;
 
 	print("readmod: path='%s', m=%p, sync=%d\n", path, m, sync);
+	READMOD_LOG("readmod: path='%s', m=%p, sync=%d", path, m, sync);
 
 	if(path[0] == '$') {
 		print("readmod: built-in module path, m=%p\n", m);
@@ -37,9 +46,11 @@ readmod(char *path, Module *m, int sync)
 	d = nil;
 	fd = kopen(path, OREAD);
 	if(fd < 0){
+		READMOD_LOG("readmod: kopen FAILED for %s", path);
 		DBG("readmod path %s, fd < 0\n", path);
 		goto done;
 	}
+	READMOD_LOG("readmod: kopen succeeded fd=%d for %s", fd, path);
 
 	if((d = kdirfstat(fd)) == nil){
 		DBG("readmod (d = kdirfstat(fd)) == nil for path %s\n", path);
@@ -93,5 +104,9 @@ done1:
 		kclose(fd);
 	}
 	free(d);
+	if(ans != nil)
+		READMOD_LOG("readmod: SUCCESS loaded module %s", path);
+	else
+		READMOD_LOG("readmod: FAILED to load module %s", path);
 	return ans;
 }

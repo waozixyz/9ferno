@@ -1,8 +1,6 @@
 use daytime
 
-@limbo
-time: fn() = daytime->time()[0:19] every 1000
-@end
+fn time(): string = daytime->time()[0:19] @ 1000
 
 Window {
     title = "Date"

@@ -150,7 +150,7 @@ set(LIB9_SOURCES
 	${LIB9}/vsmprint.c
 )
 
-# Android-specific source files
+# Android-specific source files (common to all architectures)
 set(EMU_ANDROID_SOURCES
 	${EMU_ANDROID}/os.c
 	${EMU_ANDROID}/emu.c
@@ -160,11 +160,20 @@ set(EMU_ANDROID_SOURCES
 	${EMU_ANDROID}/devwmctx.c
 	${EMU_ANDROID}/deveia.c
 	${EMU_ANDROID}/devaudio.c
+	${EMU_ANDROID}/devfs.c
 	${CMAKE_CURRENT_SOURCE_DIR}/android_native_app_glue.c
 	${CMAKE_CURRENT_SOURCE_DIR}/android_main.c
-	${EMU_ANDROID}/segflush-arm64.c
-	${EMU_ANDROID}/asm-arm64.S
 )
+
+# ARM64-specific source files
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+	list(APPEND EMU_ANDROID_SOURCES
+		${EMU_ANDROID}/segflush-arm64.c
+		${EMU_ANDROID}/asm-arm64.S
+	)
+endif()
+
+message("DEBUG: EMU_ANDROID_SOURCES=${EMU_ANDROID_SOURCES}")
 
 # libinterp source files (Dis VM)
 file(GLOB_RECURSE LIBINTERP_SOURCES
@@ -192,8 +201,7 @@ list(FILTER LIBINTERP_SOURCES EXCLUDE REGEX ".*das-spim.*")
 list(FILTER LIBINTERP_SOURCES EXCLUDE REGEX ".*das-stub.*")
 # Exclude test programs and files with duplicate symbols
 list(FILTER LIBINTERP_SOURCES EXCLUDE REGEX ".*decgen\\.c")
-# heapaudit.c excluded - references fakeTkTop from tk.c, not needed for graphics
-list(FILTER LIBINTERP_SOURCES EXCLUDE REGEX ".*heapaudit\\.c")
+# heapaudit.c included - registers fakeTkTop as GC root for Tk module
 
 # libdraw source files
 file(GLOB_RECURSE LIBDRAW_SOURCES

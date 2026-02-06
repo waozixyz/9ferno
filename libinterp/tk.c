@@ -92,13 +92,18 @@ Tk_toplevel(void *a)
 
 	r = *f->ret;
 	*f->ret = H;
-	destroy(r);
 	disp = checkdisplay(f->d);
+
+	/* Destroy old return value BEFORE allocating new one to avoid GC issues */
+	destroy(r);
 
 	h = heapz(fakeTkTop);
 	t = H2D(TkTop*, h);
 	tl = (Tk_Toplevel*)t;
 	poolimmutable(h);
+
+	/* Mark this object BEFORE calling destroy(r) to prevent GC from collecting it */
+	Setmark(h);
 
 	t->dd = f->d;
 	D2H(t->dd)->ref++;
@@ -990,6 +995,8 @@ tkfreetop(Heap *h, int swept)
 	TkPanelimage *pi, *nextpi;
 
 	t = H2D(TkTop*, h);
+	if(t == nil || t->ctxt == nil)
+		return;
 	lockctxt(t->ctxt);
 
 	if(swept) {

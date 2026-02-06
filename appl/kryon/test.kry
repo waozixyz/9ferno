@@ -1,0 +1,10 @@
+fn test() {
+    sys->print("Hello\n");
+}
+
+Window {
+    title = "Test"
+    Label {
+        text = "Hello"
+    }
+}

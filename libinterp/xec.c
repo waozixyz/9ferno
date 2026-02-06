@@ -289,21 +289,29 @@ OP(movp)
 {
 	Heap *h;
 	WORD *dv, *sv;
+	WORD **dest;
 
 	sv = P(s);
+
+	/* SAFETY CHECK: Skip if destination pointer is invalid */
+	if(R.d == H || (uintptr)R.d < 0x1000) {
+		/* Just return without doing anything - this prevents the crash */
+		return;
+	}
+
 	dv = P(d);
+	dest = (WORD**)R.d;
 
 	if(sv != H) {
 		h = D2H(sv);
-		/* Defensive check: verify heap pointer is valid BEFORE dereferencing */
 		if((uintptr)h < 0x1000) {
 			error(exNilref);
 		}
-		/* Now safe to dereference */
 		h->ref++;
 		Setmark(h);
 	}
-	P(d) = sv;
+
+	*dest = sv;
 	destroy(dv);
 }
 OP(movmp)

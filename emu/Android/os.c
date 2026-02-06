@@ -335,13 +335,13 @@ emuinit(void *imod)
 	LOGI("emuinit: Module initialization complete");
 
 	/* Load and run a simple Dis module from assets */
-	/* Try clock first - complex Tk program that should draw a clock */
+	/* Try clock first - we've confirmed VM works with testprint */
 	static const char* test_modules[] = {
 		"dis/clock.dis",       /* Clock application - complex Tk */
-		"dis/minimal.dis",     /* GUI test with button */
-		"dis/testsimple.dis",  /* Has Sys_print calls that log to Android */
-		"dis/testload.dis",    /* Minimal Draw module test */
 		"dis/testprint.dis",
+		"dis/testsimple.dis",
+		"dis/minimal.dis",     /* GUI test with button */
+		"dis/testload.dis",
 		"dis/testnobox.dis",
 		"dis/testsleep.dis",
 		"dis/testwm.dis",
@@ -1731,30 +1731,7 @@ strtomp(char *str, char **end, int base, mpint *b)
 	return nil;
 }
 
-/* Kernel file operations - stub implementations */
-int
-kopen(char *path, int mode)
-{
-	USED(path);
-	USED(mode);
-	return -1;
-}
-
-int
-kclose(int fd)
-{
-	USED(fd);
-	return -1;
-}
-
-int
-kcreate(char *path, int mode, ulong perm)
-{
-	USED(path);
-	USED(mode);
-	USED(perm);
-	return -1;
-}
+/* Kernel file operations - see devfs.c for implementations */
 
 /* Hex encoding */
 int
@@ -1770,15 +1747,7 @@ enc16(char *out, int len, uchar *in, int n)
 /* Pool memory region functions */
 /* poolimmutable and poolmutable are defined in emu/port/alloc.c */
 
-/* Kernel write */
-s32
-kwrite(int fd, void *buf, s32 len)
-{
-	USED(fd);
-	USED(buf);
-	USED(len);
-	return -1;
-}
+/* Kernel write - see devfs.c for implementation */
 
 /* Crypto module initialization */
 void
@@ -1813,15 +1782,7 @@ mpsub(mpint *a, mpint *b)
 	return nil;
 }
 
-/* Kernel read */
-s32
-kread(int fd, void *buf, s32 len)
-{
-	USED(fd);
-	USED(buf);
-	USED(len);
-	return -1;
-}
+/* Kernel read - see devfs.c for implementation */
 
 /* Dynamic module linking */
 void
@@ -2095,13 +2056,7 @@ gfltconv(Fmt *f)
 	return '%g';
 }
 
-/* Kernel file stat */
-Dir*
-kdirfstat(int fd)
-{
-	USED(fd);
-	return nil;
-}
+/* Kernel file stat - see devfs.c for implementation */
 
 /* Check if file is dynamically loadable */
 int
@@ -2111,15 +2066,7 @@ dynldable(int fd)
 	return 0;
 }
 
-/* Kernel seek */
-vlong
-kseek(int fd, vlong offset, int whence)
-{
-	USED(fd);
-	USED(offset);
-	USED(whence);
-	return -1;
-}
+/* Kernel seek - see devfs.c for implementation */
 
 /* New dynamic code */
 Module*
@@ -3297,6 +3244,7 @@ libinit(char *imod)
 	 */
 	init_android_display();
 
+	LOGI("libinit: AFTER init_android_display, before emuinit");
 	LOGI("libinit: Calling emuinit");
 	emuinit((void*)imod);  /* emuinit takes void* per fns.h */
 
@@ -3396,18 +3344,8 @@ seekdir(DIR *dirp, long loc)
 
 /*
  * Android filesystem initialization
- * Stub implementation for android_main.c compatibility
+ * Real implementation is in devfs.c
  */
-void
-android_fs_init(const char* internal_path, const char* external_path)
-{
-	USED(internal_path);
-	USED(external_path);
-	/* Paths will be handled by the existing devfs-posix.c implementation */
-	LOGI("android_fs_init: internal=%s external=%s",
-	     internal_path ? internal_path : "nil",
-	     external_path ? external_path : "nil");
-}
 
 /*
  * Load Dis bytecode from Android assets

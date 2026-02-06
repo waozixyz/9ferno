@@ -18,10 +18,17 @@
 #include "dat.h"
 #include "fns.h"
 #include "error.h"
+#include "lib9.h"
+#include "kernel.h"
 
 #define LOG_TAG "TaijiOS-FS"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+/* OCREAT is not defined in Inferno headers, add it */
+#ifndef OCREAT
+#define OCREAT 4
+#endif
 
 /* External asset manager - set from os.c */
 extern AAssetManager* android_get_asset_manager(void);
@@ -113,12 +120,12 @@ void
 android_fs_init(const char* internal_path, const char* external_path)
 {
 	if(internal_path != nil) {
-		kfree(internal_storage);
+		free(internal_storage);
 		internal_storage = strdup(internal_path);
 	}
 
 	if(external_path != nil) {
-		kfree(external_storage);
+		free(external_storage);
 		external_storage = strdup(external_path);
 	}
 
@@ -131,7 +138,7 @@ android_fs_init(const char* internal_path, const char* external_path)
  * Map Inferno path to Android path
  */
 static char*
-map_path(const char* path)
+map_path(char* path)
 {
 	char* result;
 	static char buf[1024];
@@ -166,7 +173,7 @@ map_path(const char* path)
  * Open file
  */
 int
-kopen(const char* path, int mode)
+kopen(char* path, int mode)
 {
 	char* android_path;
 	int flags, fd;
@@ -280,7 +287,7 @@ kseek(int fd, vlong offset, int whence)
  * Create directory
  */
 int
-kcreate(const char* path, int mode, ulong perm)
+kcreate(char* path, int mode, ulong perm)
 {
 	char* android_path;
 	int result;
@@ -300,7 +307,7 @@ kcreate(const char* path, int mode, ulong perm)
  * Remove file or directory
  */
 int
-kremove(const char* path)
+kremove(char* path)
 {
 	char* android_path;
 	struct stat st;
@@ -320,7 +327,7 @@ kremove(const char* path)
  * Stat file
  */
 int
-kstat(const char* path, uchar* buf, int n)
+kstat(char* path, uchar* buf, int n)
 {
 	char* android_path;
 	struct stat st;
@@ -358,6 +365,78 @@ kfstat(int fd, uchar* buf, int n)
 }
 
 /*
+ * kdirfstat - get directory info for file descriptor
+ * Returns a Dir* pointer with file metadata
+ * The caller is responsible for freeing the returned Dir
+ */
+Dir*
+kdirfstat(int fd)
+{
+	Dir *d;
+	struct stat st;
+
+	d = malloc(sizeof(Dir));
+	if(!d) {
+		LOGE("kdirfstat: malloc failed");
+		return nil;
+	}
+	memset(d, 0, sizeof(Dir));
+
+	/* Check if this is an asset fd */
+	if(fd >= 1000 && fd < 1000 + MAX_ASSET_FDS) {
+		int idx = fd - 1000;
+		if(!asset_fds[idx].in_use) {
+			free(d);
+			return nil;
+		}
+
+		/* Initialize Dir structure for asset file */
+		d->type = 0;	/* No device type for assets */
+		d->dev = 0;
+		d->qid.path = fd;	/* Use fd as unique path */
+		d->qid.vers = 0;
+		d->qid.type = QTFILE;
+		d->mode = 0644 | DMREAD | DMWRITE;	/* Regular file, readable */
+		d->atime = 0;
+		d->mtime = 0;
+		d->length = asset_fds[idx].size;
+		d->name = asset_fds[idx].path;
+		d->uid = "android";
+		d->gid = "android";
+		d->muid = "android";
+
+		LOGI("kdirfstat: asset fd=%d, size=%lld, path=%s", fd, (long long)d->length, d->name);
+		return d;
+	}
+
+	/* Regular file descriptor */
+	if(fstat(fd, &st) < 0) {
+		LOGE("kdirfstat: fstat failed for fd=%d: %s", fd, strerror(errno));
+		free(d);
+		return nil;
+	}
+
+	d->type = 0;
+	d->dev = 0;
+	d->qid.path = st.st_ino;
+	d->qid.vers = st.st_mtime;
+	d->qid.type = S_ISDIR(st.st_mode) ? QTDIR : QTFILE;
+	d->mode = st.st_mode & 0777;
+	if(S_ISDIR(st.st_mode))
+		d->mode |= DMDIR;
+	d->atime = st.st_atime;
+	d->mtime = st.st_mtime;
+	d->length = st.st_size;
+	d->name = "";
+	d->uid = "";
+	d->gid = "";
+	d->muid = "";
+
+	LOGI("kdirfstat: fd=%d, size=%lld", fd, (long long)d->length);
+	return d;
+}
+
+/*
  * Get current directory
  */
 int
@@ -372,7 +451,7 @@ kgetwd(char* buf, int n)
  * Change directory
  */
 int
-kchdir(const char* path)
+kchdir(char* path)
 {
 	char* android_path;
 
