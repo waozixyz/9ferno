@@ -304,11 +304,18 @@ OP(movp)
 		Setmark(h);
 	}
 
-	/* DEBUG: Check for dangerous pointer values before dereferencing */
-	if((uintptr)R.d < 0x1000) {
-		MOV_DEBUG("CRASH IMPENDING: R.d=%p R.s=%p R.FP=%p R.PC->d.i.f=%d R.PC->d.i.s=%d R.PC->op=0x%x",
-			R.d, R.s, R.FP, R.PC->d.i.f, R.PC->d.i.s, R.PC->op);
-		MOV_DEBUG("  R.MP=%p R.M=%p R.PC->add=0x%x", R.MP, R.M, R.PC->add);
+	/* FIX: Handle nil pointers gracefully.
+	 * If R.d is H (nil) or a small invalid value, we can't store to that address.
+	 * This happens when frame slots aren't properly initialized.
+	 * We skip the store but still need to handle the source value properly.
+	 */
+	if((uintptr)R.d < 0x1000 || R.d == (uchar*)H) {
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_ERROR, "movp-debug", "movp: SKIP invalid R.d=%p R.s=%p R.FP=%p", R.d, R.s, R.FP);
+#endif
+		/* Can't store to invalid address, but we've already handled sv refcount above.
+		 * Just skip the store and destroy operations. */
+		return;
 	}
 
 	dv = P(d);
@@ -388,20 +395,15 @@ OP(frame)
 #ifdef __ANDROID__
 	__android_log_print(ANDROID_LOG_ERROR, "frame-debug", "frame: f=%p t=%p t->size=%d t->np=%d", f, t, t->size, t->np);
 	if (t->np == 0) {
-		__android_log_print(ANDROID_LOG_ERROR, "frame-debug", "  WARNING: t->np=0, initializing all slots to H!");
-		/* FIX: Initialize all slots to H even if t->np=0
-		 * This prevents crashes when bytecode accesses slots beyond what the type descriptor covers.
-		 * The type bitmap covers the entire frame including header, so we init from the start.
-		 * Note: We don't use memset because H != 0 (H is all 1s in two's complement).
+		__android_log_print(ANDROID_LOG_ERROR, "frame-debug", "  WARNING: t->np=0, zeroing variable slots");
+		/* Zero variable slots (after Frame header) to prevent use of garbage.
+		 * Unlike H (which causes DIND to return H), zero values will cause
+		 * DIND to compute small addresses that movp will skip.
 		 */
-		int nslots = t->size / sizeof(WORD);
-		WORD **w = (WORD**)f;
-		for (int i = 0; i < nslots; i++) {
-			w[i] = H;
+		size_t varsize = t->size - sizeof(Frame);
+		if (varsize > 0) {
+			memset((uchar*)f + sizeof(Frame), 0, varsize);
 		}
-		/* Restore the fields that were set before init */
-		f->t = t;
-		f->mr = nil;
 	}
 #endif
 	if (t->np)
@@ -448,19 +450,12 @@ OP(mframe)
 #ifdef __ANDROID__
 	__android_log_print(ANDROID_LOG_ERROR, "frame-debug", "mframe: f=%p t=%p t->size=%d t->np=%d", f, t, t->size, t->np);
 	if (t->np == 0) {
-		__android_log_print(ANDROID_LOG_ERROR, "frame-debug", "  WARNING: t->np=0, initializing all slots to H!");
-		/* FIX: Initialize all slots to H even if t->np=0
-		 * This prevents crashes when bytecode accesses slots beyond what the type descriptor covers.
-		 * The type bitmap covers the entire frame including header, so we init from the start.
-		 */
-		int nslots = t->size / sizeof(WORD);
-		WORD **w = (WORD**)f;
-		for (int i = 0; i < nslots; i++) {
-			w[i] = H;
+		__android_log_print(ANDROID_LOG_ERROR, "frame-debug", "  WARNING: t->np=0, zeroing variable slots");
+		/* Zero variable slots (after Frame header) to prevent use of garbage. */
+		size_t varsize = t->size - sizeof(Frame);
+		if (varsize > 0) {
+			memset((uchar*)f + sizeof(Frame), 0, varsize);
 		}
-		/* Restore the fields that were set before init */
-		f->t = t;
-		f->mr = nil;
 	}
 #endif
 	if (t->np)

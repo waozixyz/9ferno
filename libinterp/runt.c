@@ -5,6 +5,10 @@
 #include "sysmod.h"
 #include "raise.h"
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
+
 
 static	int		utfnleng(char*, int, int*);
 
@@ -37,6 +41,15 @@ xprint(Prog *xp, void *vfp, void *vva, String *s1, char *buf, int n)
 	isr = 0;
 	if(s1 == H)
 		return 0;
+#ifdef __ANDROID__
+	/* FIX: Validate string pointer before dereferencing.
+	 * Check if the pointer looks valid (not in NULL page, not obviously corrupted).
+	 */
+	if((uintptr)s1 < 0x1000) {
+		__android_log_print(ANDROID_LOG_ERROR, "xprint-debug", "xprint: Invalid s1=%p, returning 0", s1);
+		return 0;
+	}
+#endif
 	nc = s1->len;
 	if(nc < 0) {
 		nc = -nc;

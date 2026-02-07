@@ -28,7 +28,13 @@ fn drawClock(screen: ref Image, t: int) {
     var r: Rect = screen.r;
     var c: Point = r.min.add(r.max).div(2);
     var rad: int;
-    if (r.dx() < r.dy()) { rad = r.dx(); } else { rad = r.dy(); }
+    
+    if (r.dx() < r.dy()) {
+        rad = r.dx();
+    } else {
+        rad = r.dy();
+    }
+    
     rad /= 2;
     rad -= 8;
     screen.draw(screen.r, back, nil, ZP);
