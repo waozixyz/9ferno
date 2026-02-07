@@ -132,12 +132,18 @@ jobs:
           APPSIZE=$(du -h "$APPIMAGE" | cut -f1)
           echo "AppImage: $APPNAME ($APPSIZE)"
 
-      - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload to latest release
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+        uses: softprops/action-gh-release@v2
         with:
-          name: taijios-appimage
-          path: ${{ steps.appimage-info.outputs.apppath }}
-          retention-days: 90
+          name: Latest Build
+          tag_name: latest
+          files: ${{ steps.appimage-info.outputs.apppath }}
+          prerelease: true
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload to release (on release)
         if: github.event_name == 'release'

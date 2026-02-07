@@ -41,7 +41,7 @@ xprint(Prog *xp, void *vfp, void *vva, String *s1, char *buf, int n)
 	isr = 0;
 	if(s1 == H)
 		return 0;
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && 0
 	/* FIX: Validate string pointer before dereferencing.
 	 * Check if the pointer looks valid (not in NULL page, not obviously corrupted).
 	 */
@@ -104,35 +104,34 @@ xprint(Prog *xp, void *vfp, void *vva, String *s1, char *buf, int n)
 				if(ss == H)
 					p = "";
 				else
-#ifdef __ANDROID__
-				/* Android fix: Don't modify read-only strings from bytecode.
-				 * Use precision specifier for length-limited printing */
 				if(ss->len < 0) {
 					f[-1] += 'A'-'a';
+#ifdef __ANDROID__
+					/* Android fix: Don't modify read-only strings from bytecode.
+					 * Use precision specifier for length-limited printing */
 					/* For Rune strings, use length-limited snprint.
 					 * %.<len>S prints only len characters without null terminator */
 					char rfmt[32];
 					snprint(rfmt, sizeof(rfmt), "%%.%dS", -ss->len);
 					b += snprint(b, eb-b, rfmt, ss->Srune);
+#else
+					ss->Srune[-ss->len] = L'\0';
+					p = ss->Srune;
+					b += snprint(b, eb-b, fmt, p);
+#endif
 				}
 				else {
-					/* For ASCII strings, use precision specifier */
+#ifdef __ANDROID__
+					/* Android fix: For ASCII strings, use precision specifier */
 					char afmt[32];
 					snprint(afmt, sizeof(afmt), "%%.%ds", ss->len);
 					b += snprint(b, eb-b, afmt, ss->Sascii);
-				}
 #else
-				if(ss->len < 0) {
-					f[-1] += 'A'-'a';
-					ss->Srune[-ss->len] = L'\0';
-					p = ss->Srune;
-				}
-				else {
 					ss->Sascii[ss->len] = '\0';
 					p = ss->Sascii;
-				}
-				b += snprint(b, eb-b, fmt, p);
+					b += snprint(b, eb-b, fmt, p);
 #endif
+				}
 				break;
 			case 'E':
 				f--;
