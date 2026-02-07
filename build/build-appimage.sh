@@ -11,7 +11,7 @@ set -e
 # Configuration
 # ============================================================================
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT="${SCRIPT_DIR}/.."  # Go up from build/ to project root
+export ROOT="${SCRIPT_DIR}/.."  # Go up from build/ to project root
 
 APP_NAME="TaijiOS"
 APP_VERSION="1.0"
