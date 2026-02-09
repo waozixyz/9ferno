@@ -102,6 +102,8 @@ reshape(wm: ref Wmcontext, name: string, r: Draw->Rect, i: ref Draw->Image, how:
 # Window manager control - handle commands like "exit", "reshape"
 wmctl(wm: ref Wmcontext, request: string): (string, ref Image, string)
 {
+	sys->fprint(sys->fildes(2), "wmlib-android: wmctl ENTRY, request=%s\n", request);
+
 	(w, e) := qword(request, 0);
 	case w {
 	"exit" =>
@@ -109,9 +111,11 @@ wmctl(wm: ref Wmcontext, request: string): (string, ref Image, string)
 		raise "exit";
 	"reshape" =>
 		# No-op for fullscreen
+		sys->fprint(sys->fildes(2), "wmlib-android: reshape returning (nil, nil, nil)\n");
 		return (nil, nil, nil);
 	* =>
 		# Return unhandled request
+		sys->fprint(sys->fildes(2), "wmlib-android: unhandled request, returning %s\n", request);
 		return (request, nil, nil);
 	}
 }

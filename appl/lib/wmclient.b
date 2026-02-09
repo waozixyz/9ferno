@@ -83,8 +83,24 @@ window(ctxt: ref Draw->Context, title: string, buts: int): ref Window
 	w.ctl = chan of string;
 	readscreenrect(w);
 
-	if(buts & Plain)
+	# For Plain windows, still need to set up screen and image for drawing
+	# This is especially important for Android where windows need to draw
+	# to the display image directly
+	if(buts & Plain) {
+		sys->fprint(sys->fildes(2), "wmclient: Plain window, setting up screen and image\n");
+		# Set up minimal screen and image for Plain windows
+		# Use display.image as the screen and window image
+		sys->fprint(sys->fildes(2), "wmclient: ctxt.display.image exists\n");
+		w.screen = Screen.allocate(ctxt.display.image, ctxt.display.color(Draw->White), 0);
+		sys->fprint(sys->fildes(2), "wmclient: Screen.allocate done, w.screen=");
+		if(w.screen != nil)
+			sys->fprint(sys->fildes(2), "NOT nil\n");
+		else
+			sys->fprint(sys->fildes(2), "nil\n");
+		if(w.screen != nil)
+			w.image = ctxt.display.image;
 		return w;
+	}
 
 	if(ctxt.wm == nil)
 		buts &= ~(Resize|Hide);

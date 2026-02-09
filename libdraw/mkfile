@@ -23,7 +23,6 @@ OFILES=	alloc.$O\
 	getsubfont.$O\
 	init.$O\
 	line.$O\
-	localdraw.$O\
 	mkfont.$O\
 	openfont.$O\
 	poly.$O\

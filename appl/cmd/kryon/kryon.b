@@ -4061,8 +4061,8 @@ generate_const_decls(cg: ref Codegen, prog: ref Program): string
     cds := prog.consts;
 
     while (cds != nil) {
-        # Generate: con NAME = value;
-        sys->fprint(cg.output, "con %s = %s;\n", cds.name, cds.value);
+        # Generate: NAME: con value;
+        sys->fprint(cg.output, "%s: con %s;\n", cds.name, cds.value);
         cds = cds.next;
     }
 
@@ -4107,6 +4107,11 @@ generate_var_decls(cg: ref Codegen, prog: ref Program): string
             sys->fprint(cg.output, "%s: %s;\n", vds.name, var_type);
         }
         vds = vds.next;
+    }
+
+    # Add display variable for Draw backend (needed for color access in user functions)
+    if (cg.is_draw_backend) {
+        sys->fprint(cg.output, "display: ref Draw->Display;\n");
     }
 
     sys->fprint(cg.output, "\n");
@@ -4512,21 +4517,6 @@ generate_prologue(cg: ref Codegen, prog: ref Program): string
     modules = ref Module("daytime", "daytime", "Daytime") :: modules;
 
     if (is_draw) {
-        # Check if mouse events are needed
-        need_pointer := 0;
-        if (prog.app != nil && prog.app.props != nil) {
-            p := prog.app.props;
-            while (p != nil) {
-                if (p.name == "onMouseDown" || p.name == "onMouseUp" || p.name == "onMouseMove") {
-                    need_pointer = 1;
-                    break;
-                }
-                p = p.next;
-            }
-        }
-        if (need_pointer) {
-            modules = ref Module("pointer", "pointer", "Pointer") :: modules;
-        }
 
         # Check if Graphics module is needed (Canvas widgets with onDraw)
         if (needs_graphics_module(prog)) {
@@ -4591,22 +4581,6 @@ generate_prologue(cg: ref Codegen, prog: ref Program): string
     if (is_draw) {
         buf += "Display, Image, Point, Rect: import draw;\n";
         buf += "Window: import wmclient;\n";
-
-        # Check if mouse events are needed
-        need_pointer := 0;
-        if (prog.app != nil && prog.app.props != nil) {
-            p := prog.app.props;
-            while (p != nil) {
-                if (p.name == "onMouseDown" || p.name == "onMouseUp" || p.name == "onMouseMove") {
-                    need_pointer = 1;
-                    break;
-                }
-                p = p.next;
-            }
-        }
-        if (need_pointer) {
-            buf += "Pointer: import pointer;\n";
-        }
         buf += "\n";
     }
 
@@ -4698,9 +4672,15 @@ generate_statement_no_next(cg: ref Codegen, stmt: ref Ast->Statement, indent: in
     pick s := stmt {
     VarDecl =>
         if (s.var_decl != nil) {
-            if (s.var_decl.init_expr != nil && len s.var_decl.init_expr > 0)
-                sys->fprint(cg.output, "%s%s := %s;\n", indent_str, s.var_decl.name, s.var_decl.init_expr);
-            else {
+            if (s.var_decl.init_expr != nil && len s.var_decl.init_expr > 0) {
+                # Check if type annotation is present
+                if (s.var_decl.typ != nil && len s.var_decl.typ > 0)
+                    # Preserve type annotation: name: type = value
+                    sys->fprint(cg.output, "%s%s: %s = %s;\n", indent_str, s.var_decl.name, s.var_decl.typ, s.var_decl.init_expr);
+                else
+                    # Type-inferred: name := value
+                    sys->fprint(cg.output, "%s%s := %s;\n", indent_str, s.var_decl.name, s.var_decl.init_expr);
+            } else {
                 # Type-only declaration - generate proper initialization
                 # In Limbo, we must use := with a value, not "name : type;"
                 default_val := get_default_value_for_type(s.var_decl.typ);
@@ -4762,9 +4742,15 @@ generate_statement_no_next(cg: ref Codegen, stmt: ref Ast->Statement, indent: in
         if (s.init != nil) {
             pick i := s.init {
             VarDecl =>
-                if (i.var_decl.init_expr != nil && len i.var_decl.init_expr > 0)
-                    sys->fprint(cg.output, "%s := %s", i.var_decl.name, i.var_decl.init_expr);
-                else {
+                if (i.var_decl.init_expr != nil && len i.var_decl.init_expr > 0) {
+                    # Check if type annotation is present
+                    if (i.var_decl.typ != nil && len i.var_decl.typ > 0)
+                        # Preserve type annotation: name: type = value
+                        sys->fprint(cg.output, "%s: %s = %s", i.var_decl.name, i.var_decl.typ, i.var_decl.init_expr);
+                    else
+                        # Type-inferred: name := value
+                        sys->fprint(cg.output, "%s := %s", i.var_decl.name, i.var_decl.init_expr);
+                } else {
                     # Type-only in for loop init - use default value
                     default_val := get_default_value_for_type(i.var_decl.typ);
                     sys->fprint(cg.output, "%s := %s", i.var_decl.name, default_val);
@@ -4880,10 +4866,17 @@ generate_statement(cg: ref Codegen, stmt: ref Ast->Statement, indent: int): stri
             pick sub := sub_stmt {
             VarDecl =>
                 if (sub.var_decl != nil) {
-                    if (sub.var_decl.init_expr != nil && len sub.var_decl.init_expr > 0)
-                        sys->fprint(cg.output, "%s%s := %s;\n", indent_str + "    ", sub.var_decl.name, sub.var_decl.init_expr);
-                    else {
+                    if (sub.var_decl.init_expr != nil && len sub.var_decl.init_expr > 0) {
+                        # Check if type annotation is present
+                        if (sub.var_decl.typ != nil && len sub.var_decl.typ > 0)
+                            # Preserve type annotation: name: type = value
+                            sys->fprint(cg.output, "%s%s: %s = %s;\n", indent_str + "    ", sub.var_decl.name, sub.var_decl.typ, sub.var_decl.init_expr);
+                        else
+                            # Type-inferred: name := value
+                            sys->fprint(cg.output, "%s%s := %s;\n", indent_str + "    ", sub.var_decl.name, sub.var_decl.init_expr);
+                    } else {
                         # Type-only declaration - generate proper initialization
+                        # In Limbo, we must use := with a value, not "name : type;"
                         default_val := get_default_value_for_type(sub.var_decl.typ);
                         sys->fprint(cg.output, "%s%s := %s;\n", indent_str + "    ", sub.var_decl.name, default_val);
                     }
@@ -4965,9 +4958,15 @@ generate_statement(cg: ref Codegen, stmt: ref Ast->Statement, indent: int): stri
         if (s.init != nil) {
             pick i := s.init {
             VarDecl =>
-                if (i.var_decl.init_expr != nil && len i.var_decl.init_expr > 0)
-                    sys->fprint(cg.output, "%s := %s", i.var_decl.name, i.var_decl.init_expr);
-                else {
+                if (i.var_decl.init_expr != nil && len i.var_decl.init_expr > 0) {
+                    # Check if type annotation is present
+                    if (i.var_decl.typ != nil && len i.var_decl.typ > 0)
+                        # Preserve type annotation: name: type = value
+                        sys->fprint(cg.output, "%s: %s = %s", i.var_decl.name, i.var_decl.typ, i.var_decl.init_expr);
+                    else
+                        # Type-inferred: name := value
+                        sys->fprint(cg.output, "%s := %s", i.var_decl.name, i.var_decl.init_expr);
+                } else {
                     # Type-only in for loop init - use default value
                     default_val := get_default_value_for_type(i.var_decl.typ);
                     sys->fprint(cg.output, "%s := %s", i.var_decl.name, default_val);
@@ -5414,14 +5413,6 @@ generate_draw_init(cg: ref Codegen, prog: ref Program): string
     sys->fprint(cg.output, "    math = load Math Math->PATH;\n");
     sys->fprint(cg.output, "    wmclient = load Wmclient Wmclient->PATH;\n");
 
-    # Load Pointer module if using mouse events
-    if (onmousedown_fn != nil && onmousedown_fn != "" ||
-        onmouseup_fn != nil && onmouseup_fn != "" ||
-        onmousemove_fn != nil && onmousemove_fn != "") {
-        sys->fprint(cg.output, "    pointer: Pointer;\n");
-        sys->fprint(cg.output, "    pointer = load Pointer Pointer->PATH;\n");
-    }
-
     # Load user modules (skip built-in ones: sys, draw, math, wmclient)
     imports := prog.module_imports;
     while (imports != nil) {
@@ -5455,7 +5446,7 @@ generate_draw_init(cg: ref Codegen, prog: ref Program): string
     sys->fprint(cg.output, "        ctxt = wmclient->makedrawcontext();\n");
     sys->fprint(cg.output, "\n");
     sys->fprint(cg.output, "    w := wmclient->window(ctxt, \"%s\", Wmclient->%s);\n", title, window_type);
-    sys->fprint(cg.output, "    display := w.display;\n");
+    sys->fprint(cg.output, "    display = w.display;\n");
     sys->fprint(cg.output, "\n");
 
     if (oninit_fn != nil && oninit_fn != "") {
@@ -5469,22 +5460,12 @@ generate_draw_init(cg: ref Codegen, prog: ref Program): string
     sys->fprint(cg.output, "    w.startinput(\"ptr\" :: nil);\n");
     sys->fprint(cg.output, "\n");
 
-    # Generate mouse event handler calls
-    if (onmousedown_fn != nil && onmousedown_fn != "" ||
-        onmouseup_fn != nil && onmouseup_fn != "" ||
-        onmousemove_fn != nil && onmousemove_fn != "") {
-        sys->fprint(cg.output, "    # Mouse event handling\n");
-        sys->fprint(cg.output, "    mousech := chan of ref Pointer->Provevent;\n");
-        sys->fprint(cg.output, "    w.readmouse(mousech);\n");
-        sys->fprint(cg.output, "\n");
-    }
-
     if (ondraw_fn != nil && ondraw_fn != "") {
         uses_graphics := function_uses_graphics(prog, ondraw_fn);
         if (uses_graphics) {
             sys->fprint(cg.output, "    now := daytime->now();\n");
-            sys->fprint(cg.output, "    graphics := graphics->create(w.image, display);\n");
-            sys->fprint(cg.output, "    %s(graphics, now);\n", ondraw_fn);
+            sys->fprint(cg.output, "    gctx := graphics->create(w.image, display);\n");
+            sys->fprint(cg.output, "    %s(gctx, now);\n", ondraw_fn);
             sys->fprint(cg.output, "\n");
             sys->fprint(cg.output, "    ticks := chan of int;\n");
             sys->fprint(cg.output, "    spawn timer(ticks, %d);\n", ondraw_interval);
@@ -5498,6 +5479,12 @@ generate_draw_init(cg: ref Codegen, prog: ref Program): string
     }
 
     # Event loop
+    # Declare oldbuttons before loop if using mouse events
+    if (onmousedown_fn != nil && onmousedown_fn != "" ||
+        onmouseup_fn != nil && onmouseup_fn != "" ||
+        onmousemove_fn != nil && onmousemove_fn != "") {
+        sys->fprint(cg.output, "    oldbuttons := 0;\n");
+    }
     sys->fprint(cg.output, "    for(;;){\n");
     sys->fprint(cg.output, "        alt{\n");
     sys->fprint(cg.output, "        ctl := <-w.ctl or\n");
@@ -5507,8 +5494,8 @@ generate_draw_init(cg: ref Codegen, prog: ref Program): string
     if (ondraw_fn != nil && ondraw_fn != "") {
         uses_graphics := function_uses_graphics(prog, ondraw_fn);
         if (uses_graphics) {
-            sys->fprint(cg.output, "                graphics := Graphics->create(w.image, display);\n");
-            sys->fprint(cg.output, "                %s(graphics, now);\n", ondraw_fn);
+            sys->fprint(cg.output, "                gctx := graphics->create(w.image, display);\n");
+            sys->fprint(cg.output, "                %s(gctx, now);\n", ondraw_fn);
         } else {
             sys->fprint(cg.output, "                %s(w.image, now);\n", ondraw_fn);
         }
@@ -5517,30 +5504,33 @@ generate_draw_init(cg: ref Codegen, prog: ref Program): string
     }
     sys->fprint(cg.output, "\n");
 
-    # Mouse events
+    # Mouse events - use w.ctxt.ptr which is chan of ref Pointer
     if (onmousedown_fn != nil && onmousedown_fn != "" ||
         onmouseup_fn != nil && onmouseup_fn != "" ||
         onmousemove_fn != nil && onmousemove_fn != "") {
-        sys->fprint(cg.output, "        e := <-mousech =>\n");
-        sys->fprint(cg.output, "            if(e == nil) break;\n");
+        sys->fprint(cg.output, "        p := <-w.ctxt.ptr =>\n");
+        sys->fprint(cg.output, "            w.pointer(*p);\n");
+        sys->fprint(cg.output, "            if(p != nil){\n");
         if (onmousedown_fn != nil && onmousedown_fn != "") {
-            sys->fprint(cg.output, "            if(e.buttons != 0 && e.oldbuttons == 0)\n");
-            sys->fprint(cg.output, "                %s(e.xy.x, e.xy.y, e.buttons);\n", onmousedown_fn);
+            sys->fprint(cg.output, "                if(p.buttons != 0 && oldbuttons == 0)\n");
+            sys->fprint(cg.output, "                    %s(p.xy.x, p.xy.y, p.buttons);\n", onmousedown_fn);
         }
         if (onmouseup_fn != nil && onmouseup_fn != "") {
-            sys->fprint(cg.output, "            if(e.buttons == 0 && e.oldbuttons != 0)\n");
-            sys->fprint(cg.output, "                %s(e.xy.x, e.xy.y, e.oldbuttons);\n", onmouseup_fn);
+            sys->fprint(cg.output, "                if(p.buttons == 0 && oldbuttons != 0)\n");
+            sys->fprint(cg.output, "                    %s(p.xy.x, p.xy.y, oldbuttons);\n", onmouseup_fn);
         }
         if (onmousemove_fn != nil && onmousemove_fn != "") {
-            sys->fprint(cg.output, "            if(e.buttons != 0)\n");
-            sys->fprint(cg.output, "                %s(e.xy.x, e.xy.y);\n", onmousemove_fn);
+            sys->fprint(cg.output, "                if(p.buttons != 0)\n");
+            sys->fprint(cg.output, "                    %s(p.xy.x, p.xy.y);\n", onmousemove_fn);
         }
+        sys->fprint(cg.output, "                oldbuttons = p.buttons;\n");
+        sys->fprint(cg.output, "            }\n");
+        sys->fprint(cg.output, "\n");
+    } else {
+        sys->fprint(cg.output, "        p := <-w.ctxt.ptr =>\n");
+        sys->fprint(cg.output, "            w.pointer(*p);\n");
         sys->fprint(cg.output, "\n");
     }
-
-    sys->fprint(cg.output, "        p := <-w.ctxt.ptr =>\n");
-    sys->fprint(cg.output, "            w.pointer(*p);\n");
-    sys->fprint(cg.output, "\n");
 
     if (ondraw_fn != nil && ondraw_fn != "") {
         uses_graphics := function_uses_graphics(prog, ondraw_fn);
@@ -5549,8 +5539,8 @@ generate_draw_init(cg: ref Codegen, prog: ref Program): string
         sys->fprint(cg.output, "            if(t != now){\n");
         sys->fprint(cg.output, "                now = t;\n");
         if (uses_graphics) {
-            sys->fprint(cg.output, "                graphics := Graphics->create(w.image, display);\n");
-            sys->fprint(cg.output, "                %s(graphics, now);\n", ondraw_fn);
+            sys->fprint(cg.output, "                gctx := graphics->create(w.image, display);\n");
+            sys->fprint(cg.output, "                %s(gctx, now);\n", ondraw_fn);
         } else {
             sys->fprint(cg.output, "                %s(w.image, now);\n", ondraw_fn);
         }
