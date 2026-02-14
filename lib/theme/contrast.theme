@@ -1,0 +1,44 @@
+# High Contrast Theme for TaijiOS
+# Maximum contrast for accessibility and low-vision users
+
+# Basic colors
+foreground = #000000FF
+background = #FFFFFFFF
+background_light = #FFFFFFFF
+background_dark = #E0E0E0FF
+
+# Selection colors (pure black)
+select = #000000FF
+select_background = #000000FF
+select_background_light = #1A1A1AFF
+select_background_dark = #000000FF
+select_foreground = #FFFFFFFF
+
+# Active element colors (inverted)
+active_background = #000000FF
+active_background_light = #1A1A1AFF
+active_background_dark = #000000FF
+active_foreground = #FFFFFFFF
+
+# Disabled elements
+disabled_foreground = #606060FF
+
+# Highlight
+highlight_foreground = #000000FF
+
+# Fill & border
+fill = #FFFFFFFF
+transparent = #00000000
+
+# Title bar colors (17-21) - High contrast
+title_background = #000000FF      # Pure black (active)
+title_inactive = #606060FF        # Dark gray (inactive)
+title_foreground = #FFFFFFFF      # Pure white text
+title_border = #000000FF          # Black border
+title_button = #FFFFFFFF          # White button
+
+# Toolbar colors (22-25)
+toolbar_background = #FFFFFFFF    # Pure white background
+toolbar_foreground = #000000FF    # Pure black text
+toolbar_button = #E0E0E0FF        # Light gray button
+toolbar_button_active = #000000FF # Black active state

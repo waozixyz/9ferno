@@ -1,27 +1,29 @@
 # Game Boy Color Theme for TaijiOS
-# Green LCD palette inspired by the original GBC
+# Authentic GBC palette with improved usability and contrast
 
-# Lightest green (background)
+# Lightest green (main background)
 background = #9bbc0fFF
-background_light = #9bbc0fFF
-background_dark = #0f380fFF
+background_light = #b5c520FF
+background_dark = #7da328FF
 
-# Primary text (darkest green)
+# Primary text (darkest green for readability)
 foreground = #0f380fFF
 
-# Selection colors (dark green with light text)
-select = #8bac0fFF
-select_background = #306230FF
-select_foreground = #9bbc0fFF
+# Selection colors (uses amber accent like some GBC games)
+select = #f89800FF
+select_background = #f89800FF
+select_background_light = #ffb827FF
+select_background_dark = #d48000FF
+select_foreground = #0f380fFF
 
-# Active/pressed widgets
+# Active/pressed widgets (medium green)
 active_background = #8bac0fFF
 active_background_light = #9bbc0fFF
-active_background_dark = #306230FF
+active_background_dark = #6b8d0aFF
 active_foreground = #0f380fFF
 
-# Disabled text (dark green)
-disabled_foreground = #306230FF
+# Disabled text (medium-dark green)
+disabled_foreground = #4a6318FF
 
 # Highlight text
 highlight_foreground = #0f380fFF
@@ -30,15 +32,15 @@ highlight_foreground = #0f380fFF
 fill = #8bac0fFF
 transparent = #00000000
 
-# Title bar colors (indices 17-21) - Game Boy green theme
-title_background = #306230FF      # Dark green (active)
-title_inactive = #8BAC0FFF        # Slightly darker green (inactive)
-title_foreground = #9BBC0FFF      # Light green text
-title_border = #0F380FFF          # Darkest green border
-title_button = #9BBC0FFF          # Light green button
+# Title bar colors - Dark green for contrast
+title_background = #306230FF      # Darkest green (active)
+title_inactive = #5e7a22FF        # Medium green (inactive)
+title_foreground = #9bbc0fFF      # Light green text
+title_border = #0f380fFF          # Almost-black border
+title_button = #8bac0fFF          # Medium green button
 
-# Toolbar colors (indices 22-25) - Game Boy green theme
-toolbar_background = #9BBC0FFF    # Light green toolbar background
-toolbar_foreground = #0F380FFF    # Dark green toolbar text
-toolbar_button = #8BAC0FFF        # Medium green button
-toolbar_button_active = #306230FF # Dark green active button
+# Toolbar colors
+toolbar_background = #8bac0fFF    # Medium green toolbar
+toolbar_foreground = #0f380fFF    # Dark green text
+toolbar_button = #9bbc0fFF        # Light green button
+toolbar_button_active = #f89800FF # Amber accent for active

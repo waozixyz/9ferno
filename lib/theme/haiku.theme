@@ -1,44 +1,44 @@
 # Haiku Theme for TaijiOS
-# Clean, minimalist cyan theme inspired by Haiku OS
+# Authentic Haiku OS colors with yellow/gold accent
 
 # Basic colors
 foreground = #000000FF
-background = #E0FFFFF8
-background_light = #EDFFFFF8
-background_dark = #C0C0D0F
+background = #F7F7F7FF
+background_light = #FFFFFFFF
+background_dark = #D0D0D0FF
 
-# Selection colors (purple accent)
-select = #808080FF
-select_background = #2A1A1D0
-select_background_light = #3A2A2E0
-select_background_dark = #1E1E1A0
-select_foreground = #F0F0F0FF
+# Selection colors (yellow accent)
+select = #FFC000FF
+select_background = #FFC000FF
+select_background_light = #FFD030FF
+select_background_dark = #E0A000FF
+select_foreground = #000000FF
 
-# Active element colors (blue accent)
-active_background = #404040FF
-active_background_light = #505050FF
-active_background_dark = #303030FF
-active_foreground = #E0FFFFF0
+# Active element colors (yellow accent)
+active_background = #FFC000FF
+active_background_light = #FFD030FF
+active_background_dark = #E0A000FF
+active_foreground = #000000FF
 
 # Disabled elements
 disabled_foreground = #808080FF
 
 # Highlight
-highlight_foreground = #E0F0E0FF
+highlight_foreground = #000000FF
 
 # Fill & border
-fill = #E0FFFFF0
+fill = #F7F7F7FF
 transparent = #00000000
 
-# Title bar colors (17-21) - soft cyan
-title_background = #5C5C5C0      # Gentle cyan
-title_inactive = #3A3A3A80     # Muted cyan
-title_foreground = #FFFFFF00     # White text
-title_border = #00000000       # No border
-title_button = #4A4A4A60      # Light cyan button
+# Title bar colors (17-21) - Haiku style
+title_background = #FFC000FF      # Yellow (active)
+title_inactive = #E0E0E0FF        # Grey (inactive)
+title_foreground = #000000FF      # Black text
+title_border = #000000FF          # Black border
+title_button = #F0F0F0FF          # Light grey button
 
 # Toolbar colors (22-25)
-toolbar_background = #5C5C5C0  # Matching title bar
-toolbar_foreground = #0000000F    # Black text
-toolbar_button = #404040D0    # Dark cyan button
-toolbar_button_active = #606060F0  # Lighter cyan button
+toolbar_background = #F7F7F7FF    # Light grey
+toolbar_foreground = #000000FF    # Black text
+toolbar_button = #E0E0E0FF        # Grey button
+toolbar_button_active = #FFC000FF # Yellow active state

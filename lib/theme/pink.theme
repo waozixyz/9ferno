@@ -2,23 +2,23 @@
 # Soft, playful pink theme with warm accents
 
 # Basic colors
-foreground = #2A1A1A0
+foreground = #2A1A1AFF
 background = #FFF0F5FF
 background_light = #FFF5F7FF
 background_dark = #FFD0E7FF
 
 # Selection colors (deeper pink)
 select = #FF69B4FF
-select_background = #4A0A4A0
-select_background_light = #6B1A6B0
-select_background_dark = #2A0A280
+select_background = #4A0A4AFF
+select_background_light = #6B1A6BFF
+select_background_dark = #2A0A28FF
 select_foreground = #FFDDDDFF
 
 # Active element colors (warm orange)
 active_background = #FFB080FF
 active_background_light = #FFC090FF
 active_background_dark = #E0A000FF
-active_foreground = #2A1A1A0
+active_foreground = #2A1A1AFF
 
 # Disabled elements
 disabled_foreground = #AA6A6AAA
@@ -33,12 +33,12 @@ transparent = #00000000
 # Title bar colors (17-21)
 title_background = #FFB0D0FF      # Pink title bar
 title_inactive = #E0A0A080      # Muted pink
-title_foreground = #2A1A1A0      # Dark text
+title_foreground = #2A1A1AFF      # Dark text
 title_border = #00000000       # No border
-title_button = #FF8095B0      # Light pink button
+title_button = #FF8095B0FF      # Light pink button
 
 # Toolbar colors (22-25)
 toolbar_background = #FFB0D0FF  # Matching title bar
-toolbar_foreground = #2A1A1A0      # Dark text
-toolbar_button = #E0A080FF    # Muted pink button
+toolbar_foreground = #2A1A1AFF      # Dark text
+toolbar_button = #E0A0A0FF    # Muted pink button
 toolbar_button_active = #FFC090FF  # Lighter pink button

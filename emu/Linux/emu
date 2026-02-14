@@ -101,6 +101,8 @@ root
 	/lib/theme/dark.theme	/lib/theme/dark.theme
 	/lib/theme/gbc.theme	/lib/theme/gbc.theme
 	/lib/theme/win95.theme	/lib/theme/win95.theme
+	/lib/theme/haiku.theme	/lib/theme/haiku.theme
+	/lib/theme/pink.theme	/lib/theme/pink.theme
 #	/dis
 #	/n
 #	/icons

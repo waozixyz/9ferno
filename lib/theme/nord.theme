@@ -1,0 +1,44 @@
+# Nord Theme for TaijiOS
+# Arctic, bluish-gray theme inspired by Nordic landscapes
+
+# Basic colors
+foreground = #2E3440FF
+background = #ECEFF4FF
+background_light = #E5E9F0FF
+background_dark = #D8DEE9FF
+
+# Selection colors (Nord blue)
+select = #88C0D0FF
+select_background = #88C0D0FF
+select_background_light = #9FCEDCFF
+select_background_dark = #6FB0C0FF
+select_foreground = #2E3440FF
+
+# Active element colors (Nord blue)
+active_background = #88C0D0FF
+active_background_light = #9FCEDCFF
+active_background_dark = #6FB0C0FF
+active_foreground = #2E3440FF
+
+# Disabled elements
+disabled_foreground = #949EAAFF
+
+# Highlight
+highlight_foreground = #81A1C1FF
+
+# Fill & border
+fill = #ECEFF4FF
+transparent = #00000000
+
+# Title bar colors (17-21) - Nord frost
+title_background = #88C0D0FF      # Frost blue (active)
+title_inactive = #D8DEE9FF        # Light gray (inactive)
+title_foreground = #2E3440FF      # Dark text
+title_border = #4C566AFF          # Border
+title_button = #E5E9F0FF          # Light button
+
+# Toolbar colors (22-25)
+toolbar_background = #ECEFF4FF    # Light background
+toolbar_foreground = #2E3440FF    # Dark text
+toolbar_button = #D8DEE9FF        # Button background
+toolbar_button_active = #88C0D0FF # Frost blue active

@@ -346,7 +346,20 @@ themeread(Chan *c, void *buf, long n, vlong off)
 
 	case Qlist:
 		/* Hardcoded list of available themes */
-		return readstr(off, buf, n, "default\ndark\nlight\n");
+		return readstr(off, buf, n,
+			"amiga\n"
+			"classic\n"
+			"contrast\n"
+			"dark\n"
+			"default\n"
+			"dracula\n"
+			"gbc\n"
+			"haiku\n"
+			"nord\n"
+			"pink\n"
+			"ubuntu\n"
+			"win95\n"
+		);
 
 	case Qevent:
 	{

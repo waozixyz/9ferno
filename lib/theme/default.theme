@@ -1,1 +1,44 @@
-haiku
+# Default TaijiOS Theme
+# Matches current hardcoded values in libtk/colrs.c
+
+# Base background (R=0xDD, G=0xDD, B=0xDD)
+background = #DDDDDDFF
+background_light = #EEEEEEFF
+background_dark = #C8C8C8FF
+
+# Primary text
+foreground = #000000FF
+
+# Selection colors (purple accent: R=0xB0, G=0x30, B=0x60)
+select = #B03060FF
+select_background = #404040FF
+select_background_light = #505050FF
+select_background_dark = #303030FF
+select_foreground = #FFFFFFFF
+
+# Active/pressed widgets (background+0x10)
+active_background = #EDEDEDFF
+active_background_light = #FEFEFEFF
+active_background_dark = #D8D8D8FF
+active_foreground = #000000FF
+
+# Disabled and highlight text
+disabled_foreground = #888888FF
+highlight_foreground = #000000FF
+
+# Fill and transparent
+fill = #DDDDDDFF
+transparent = #00000000
+
+# Title bar colors (indices 17-21)
+title_background = #4169E1FF      # Active title bar (royal blue)
+title_inactive = #D3D3D3FF        # Inactive title bar (light gray)
+title_foreground = #FFFFFFFF      # Title text (white)
+title_border = #303030FF          # Title border (dark gray)
+title_button = #F0F0F0FF          # Title buttons (light gray)
+
+# Toolbar colors (indices 22-25)
+toolbar_background = #DDDDDDFF    # Toolbar background
+toolbar_foreground = #000000FF    # Toolbar text/icon
+toolbar_button = #E0E0E0FF        # Toolbar button background
+toolbar_button_active = #C0C0C0FF # Active/hover button state

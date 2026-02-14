@@ -1,0 +1,44 @@
+# AmigaOS Theme for TaijiOS
+# Classic Workbench 3.x colors with blue/gray palette
+
+# Basic colors
+foreground = #000000FF
+background = #B0B0B0FF
+background_light = #D8D8D8FF
+background_dark = #909090FF
+
+# Selection colors (blue accent)
+select = #0000A4FF
+select_background = #0000A4FF
+select_background_light = #2020C4FF
+select_background_dark = #000084FF
+select_foreground = #FFFFFFFF
+
+# Active element colors (blue accent)
+active_background = #0000A4FF
+active_background_light = #2020C4FF
+active_background_dark = #000084FF
+active_foreground = #FFFFFFFF
+
+# Disabled elements
+disabled_foreground = #707070FF
+
+# Highlight
+highlight_foreground = #0000A4FF
+
+# Fill & border
+fill = #B0B0B0FF
+transparent = #00000000
+
+# Title bar colors (17-21) - Amiga blue
+title_background = #0000A4FF      # Amiga blue (active)
+title_inactive = #808080FF        # Gray (inactive)
+title_foreground = #FFFFFFFF      # White text
+title_border = #000000FF          # Black border
+title_button = #C0C0C0FF          # Button gray
+
+# Toolbar colors (22-25)
+toolbar_background = #B0B0B0FF    # Gray background
+toolbar_foreground = #000000FF    # Black text
+toolbar_button = #A0A0A0FF        # Button background
+toolbar_button_active = #0000A4FF # Blue active state

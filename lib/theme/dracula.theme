@@ -1,0 +1,44 @@
+# Dracula Theme for TaijiOS
+# Dark purple-accented theme for developers
+
+# Basic colors
+foreground = #F8F8F2FF
+background = #282A36FF
+background_light = #44475AFF
+background_dark = #1E1F29FF
+
+# Selection colors (purple accent)
+select = #BD93F9FF
+select_background = #44475AFF
+select_background_light = #6272A4FF
+select_background_dark = #343746FF
+select_foreground = #F8F8F2FF
+
+# Active element colors (purple accent)
+active_background = #6272A4FF
+active_background_light = #7D8BA6FF
+active_background_dark = #4E5A7EFF
+active_foreground = #F8F8F2FF
+
+# Disabled elements
+disabled_foreground = #6272A4FF
+
+# Highlight
+highlight_foreground = #BD93F9FF
+
+# Fill & border
+fill = #44475AFF
+transparent = #00000000
+
+# Title bar colors (17-21) - Dracula purple
+title_background = #BD93F9FF      # Purple (active)
+title_inactive = #44475AFF        # Gray (inactive)
+title_foreground = #282A36FF      # Dark text
+title_border = #191A21FF          # Dark border
+title_button = #FF79C6FF          # Pink button
+
+# Toolbar colors (22-25)
+toolbar_background = #282A36FF    # Dark background
+toolbar_foreground = #F8F8F2FF    # Light text
+toolbar_button = #44475AFF        # Button background
+toolbar_button_active = #BD93F9FF # Purple active state

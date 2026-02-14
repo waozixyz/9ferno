@@ -1,0 +1,44 @@
+# Ubuntu Theme for TaijiOS
+# Canonical orange with warm aubergine accents
+
+# Basic colors
+foreground = #2C2C2CFF
+background = #F7F7F7FF
+background_light = #FFFFFFD0
+background_dark = #DDDDDDFF
+
+# Selection colors (Ubuntu orange)
+select = #E95420FF
+select_background = #E95420FF
+select_background_light = #FF6B34FF
+select_background_dark = #C7411AFF
+select_foreground = #FFFFFFFF
+
+# Active element colors (orange accent)
+active_background = #E95420FF
+active_background_light = #FF6B34FF
+active_background_dark = #C7411AFF
+active_foreground = #FFFFFFFF
+
+# Disabled elements
+disabled_foreground = #9E9E9EFF
+
+# Highlight
+highlight_foreground = #E95420FF
+
+# Fill & border
+fill = #F7F7F7FF
+transparent = #00000000
+
+# Title bar colors (17-21) - Ubuntu aubergine
+title_background = #E95420FF      # Ubuntu orange
+title_inactive = #77216FFF        # Aubergine (inactive)
+title_foreground = #FFFFFFFF      # White text
+title_border = #3E3E3EFF          # Dark border
+title_button = #DDDDDDFF          # Light button
+
+# Toolbar colors (22-25)
+toolbar_background = #F7F7F7FF    # Light background
+toolbar_foreground = #2C2C2CFF    # Dark text
+toolbar_button = #E0E0E0FF        # Button background
+toolbar_button_active = #E95420FF # Orange active state
