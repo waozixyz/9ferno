@@ -338,11 +338,7 @@ themeread(Chan *c, void *buf, long n, vlong off)
 
 	case Qctl:
 	case Qtheme:
-		snprint(tmp, sizeof(tmp),
-			"theme %s\nversion %lld\n",
-			themestate.current_theme,
-			themestate.version);
-		return readstr(off, buf, n, tmp);
+		return readstr(off, buf, n, themestate.current_theme);
 
 	case Qlist:
 		/* Hardcoded list of available themes */

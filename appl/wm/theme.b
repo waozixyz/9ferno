@@ -21,6 +21,12 @@ Theme: module {
 	init:	fn(ctxt: ref Draw->Context, argv: list of string);
 };
 
+badmodule(p: string)
+{
+	sys->fprint(sys->fildes(2), "theme: cannot load %s: %r\n", p);
+	raise "fail:bad module";
+}
+
 THEMEDIR := "/lib/theme/";
 DEVTHEME := "#w/";
 
@@ -56,7 +62,11 @@ init(ctxt: ref Draw->Context, nil: list of string)
 	draw = load Draw Draw->PATH;
 	tk = load Tk Tk->PATH;
 	tkclient = load Tkclient Tkclient->PATH;
+	if(tkclient == nil)
+		badmodule(Tkclient->PATH);
 	titlebar = load Titlebar Titlebar->PATH;
+	if(titlebar == nil)
+		badmodule(Titlebar->PATH);
 
 	sys->pctl(Sys->NEWPGRP, nil);
 
@@ -172,15 +182,7 @@ current_theme(): string
 	if(n <= 0)
 		return nil;
 
-	s := string buf[0:n];
-	# Trim whitespace and newline
-	for(i := n-1; i >= 0; i--) {
-		if(s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r')
-			s = s[0:i];
-		else
-			break;
-	}
-	return s;
+	return string buf[0:n];
 }
 
 get_selected(): string
