@@ -19,7 +19,7 @@
 /* Forward declaration from devdraw.c */
 extern void drawwakeall(void);
 
-#define NTHEMECOLORS  26
+#define NTHEMECOLORS  28
 
 /* QID path values for theme files */
 enum {
@@ -54,6 +54,8 @@ enum {
 	Qcolor23,  /* TkCtoolbarfgnd */
 	Qcolor24,  /* TkCtoolbarbutton */
 	Qcolor25,  /* TkCtoolbarbuttonactive */
+	Qcolor26,  /* TkCshelltext */
+	Qcolor27,  /* TkCshellbackground */
 };
 
 /* Theme color state */
@@ -106,6 +108,8 @@ static Dirtab themedirtab[] = {
 	"23",         {Qcolor23}, 0, 0666,
 	"24",         {Qcolor24}, 0, 0666,
 	"25",         {Qcolor25}, 0, 0666,
+	"26",         {Qcolor26}, 0, 0666,
+	"27",         {Qcolor27}, 0, 0666,
 };
 
 /* Color names matching TkC indices */
@@ -136,6 +140,8 @@ static char* colornames[NTHEMECOLORS] = {
 	"toolbar_foreground",   /* TkCtoolbarfgnd */
 	"toolbar_button",       /* TkCtoolbarbutton */
 	"toolbar_button_active", /* TkCtoolbarbuttonactive */
+	"shell_text",           /* TkCshelltext */
+	"shell_background",     /* TkCshellbackground */
 };
 
 static int load_theme_by_name(char *name);
@@ -171,6 +177,8 @@ static ulong defaultcolors[NTHEMECOLORS] = {
 	0x000000FF, /* toolbar_foreground (TkCtoolbarfgnd) */
 	0xE0E0E0FF, /* toolbar_button (TkCtoolbarbutton) */
 	0xC0C0C0FF, /* toolbar_button_active (TkCtoolbarbuttonactive) */
+	0x000000FF, /* shell_text (TkCshelltext) - Black (matches classic theme) */
+	0xFFFFFFFF, /* shell_background (TkCshellbackground) - White (matches classic theme) */
 };
 
 static void

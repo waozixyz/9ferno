@@ -133,73 +133,75 @@ read_theme_color(idx: int): int
 	return v;
 }
 
-# Update terminal colors when theme changes
-update_theme_on_change()
+# Track last seen theme version
+last_theme_ver := 0;
+
+# Check if theme changed and update colors (event-driven)
+check_and_update_theme()
 {
+	# Read current theme version from #w/ctl
 	fd := sys->open("#w/ctl", Sys->OREAD);
 	if(fd == nil)
 		return;
 
-	last_ver := 0;
 	buf := array[128] of byte;
+	n := sys->read(fd, buf, len buf);
+	fd = nil;
 
-	for(;;) {
-		sys->sleep(1000);  # Check every second
+	if(n <= 0)
+		return;
 
-		# Read current theme version
-		fd = sys->open("#w/ctl", Sys->OREAD);
-		if(fd == nil)
-			continue;
+	buf[n] = byte 0;
+	s := string buf;
 
-		n := sys->read(fd, buf, len buf);
-		fd = nil;
+	# Parse "version N" - find version number
+	p := 0;
+	for(i := 0; i < len s - 7; i++) {
+		if(s[i:i+8] == "version ") {
+			p = i + 8;
+			break;
+		}
+	}
 
-		if(n > 0) {
-			buf[n] = byte 0;
-			s := string buf;
-			# Parse "version N" - find version number
-			# Simple search for "version "
-			p := 0;
-			for(i := 0; i < len s - 7; i++) {
-				if(s[i:i+8] == "version ") {
-					p = i + 8;
-					break;
-				}
-			}
-			if(p > 0) {
-				ver_str := s[p:];
-				# Extract digits
-				ver := 0;
-				for(i := 0; i < len ver_str && ver_str[i] >= '0' && ver_str[i] <= '9'; i++) {
-					ver = ver * 10 + (ver_str[i] - '0');
-				}
-				if(ver > last_ver) {
-					last_ver = ver;
-					# Theme changed, update colors
-					theme_fg := read_theme_color(0);
-					theme_bg := read_theme_color(1);
+	if(p == 0)
+		return;
 
-					if(theme_fg != -1 && vtc[0] != nil) {
-						r := (theme_fg >> 24) & 255;
-						g := (theme_fg >> 16) & 255;
-						b := (theme_fg >> 8) & 255;
-						vtc[0] = display.newimage(((0,0),(1,1)), t.image.chans,
-							1, display.rgb2cmap(r, g, b));
-					}
+	# Extract version digits
+	ver := 0;
+	for(j := 0; j < len s[p:] && s[p+j] >= '0' && s[p+j] <= '9'; j++) {
+		ver = ver * 10 + (s[p+j] - '0');
+	}
 
-					if(theme_bg != -1 && vtc[7] != nil) {
-						r := (theme_bg >> 24) & 255;
-						g := (theme_bg >> 16) & 255;
-						b := (theme_bg >> 8) & 255;
-						vtc[7] = display.newimage(((0,0),(1,1)), t.image.chans,
-							1, display.rgb2cmap(r, g, b));
-					}
+	# If version changed, update colors
+	if(ver > last_theme_ver) {
+		last_theme_ver = ver;
 
-					# Force redraw
-					vt_write(vt, "\u001b[2J");
-				}
+		# Update foreground color (0)
+		if(vtc[0] != nil) {
+			theme_fg := read_theme_color(26);  # TkCshelltext
+			if(theme_fg != -1) {
+				r := (theme_fg >> 24) & 255;
+				g := (theme_fg >> 16) & 255;
+				b := (theme_fg >> 8) & 255;
+				vtc[0] = display.newimage(((0,0),(1,1)), t.image.chans,
+					1, display.rgb2cmap(r, g, b));
 			}
 		}
+
+		# Update background color (7)
+		if(vtc[7] != nil) {
+			theme_bg := read_theme_color(27);  # TkCshellbackground
+			if(theme_bg != -1) {
+				r := (theme_bg >> 24) & 255;
+				g := (theme_bg >> 16) & 255;
+				b := (theme_bg >> 8) & 255;
+				vtc[7] = display.newimage(((0,0),(1,1)), t.image.chans,
+					1, display.rgb2cmap(r, g, b));
+			}
+		}
+
+		# Force immediate redraw
+		redraw();
 	}
 }
 
@@ -289,9 +291,15 @@ init(ctxt: ref Draw->Context, nil: list of string)
 	npts := 0;
 	WasUp := 1;
 
-	# Read theme colors for terminal
-	theme_fg := read_theme_color(0);
-	theme_bg := read_theme_color(1);
+	# Read theme colors for terminal (THEME IS KING)
+	theme_fg := read_theme_color(26);  # TkCshelltext
+	theme_bg := read_theme_color(27);  # TkCshellbackground
+
+	# If theme read fails, use hardcoded fallback (no VGA calculation!)
+	if(theme_fg == -1)
+		theme_fg = 16rFFFFFF;  # White fallback
+	if(theme_bg == -1)
+		theme_bg = 16r000000;  # Black fallback
 
 	for(i=0; i<16; i++) {
 		r := 0;
@@ -307,13 +315,13 @@ init(ctxt: ref Draw->Context, nil: list of string)
 		if(i&4)
 			b = v;
 
-		# Use theme colors for foreground (0) and background (7)
-		if(i == 0 && theme_fg != -1) {
+		# Colors 0 and 7: ALWAYS use theme colors (no fallback)
+		if(i == 0) {
 			r = (theme_fg >> 24) & 255;
 			g = (theme_fg >> 16) & 255;
 			b = (theme_fg >> 8) & 255;
 		}
-		if(i == 7 && theme_bg != -1) {
+		if(i == 7) {
 			r = (theme_bg >> 24) & 255;
 			g = (theme_bg >> 16) & 255;
 			b = (theme_bg >> 8) & 255;
@@ -328,9 +336,6 @@ init(ctxt: ref Draw->Context, nil: list of string)
 	}
 
 	vt_write(vt, "\u001b[2J");
-
-	# Register for theme change notifications
-	spawn update_theme_on_change();
 
 	ioc := chan of (int, ref Sys->FileIO, ref Sys->FileIO);
 	spawn newsh(ctxt, ioc);
@@ -350,8 +355,12 @@ init(ctxt: ref Draw->Context, nil: list of string)
 	for(;;) alt {
 	s := <-t.ctxt.kbd =>
 		tk->keyboard(t, s);
+		# Check for theme changes on keyboard events
+		check_and_update_theme();
 	s := <-t.ctxt.ptr =>
 		tk->pointer(t, *s);
+		# Check for theme changes on pointer events
+		check_and_update_theme();
 	s := <-t.ctxt.ctl or
 	s = <-t.wreq =>
 		tkclient->wmctl(t, s);

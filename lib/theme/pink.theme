@@ -42,3 +42,7 @@ toolbar_background = #FFB0D0FF  # Matching title bar
 toolbar_foreground = #2A1A1AFF      # Dark text
 toolbar_button = #E0A0A0FF    # Muted pink button
 toolbar_button_active = #FFC090FF  # Lighter pink button
+
+# Shell/console colors (indices 26-27)
+shell_text = #4A0048FF            # Shell text (dark purple)
+shell_background = #FFCCFFFF      # Shell background (light pink)

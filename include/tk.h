@@ -408,6 +408,10 @@ enum
 	TkCtoolbarbutton,	/* Toolbar button background */
 	TkCtoolbarbuttonactive,	/* Toolbar button active */
 
+	/* Shell colors (26-27) */
+	TkCshelltext,		/* Shell/console text */
+	TkCshellbackground,	/* Shell/console background */
+
 	TkNcolor,
 
 	TkSameshade	= 0,		/* relative shade for tkgshade() and tkrgbashade()*/

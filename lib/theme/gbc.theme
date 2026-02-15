@@ -44,3 +44,7 @@ toolbar_background = #8bac0fFF    # Medium green toolbar
 toolbar_foreground = #0f380fFF    # Dark green text
 toolbar_button = #9bbc0fFF        # Light green button
 toolbar_button_active = #f89800FF # Amber accent for active
+
+# Shell/console colors (indices 26-27)
+shell_text = #0f380fFF            # Shell text (darkest green)
+shell_background = #9bbc0fFF      # Shell background (lightest green)

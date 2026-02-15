@@ -104,6 +104,12 @@ static Coltab coltab[] =
 	TkCtoolbarbuttonactive,
 		RGB(0xC0, 0xC0, 0xC0),		/* Toolbar button active */
 		TkSameshade,
+	TkCshelltext,
+		RGB(0x00, 0x00, 0x00),		/* Shell text - black (matches classic theme) */
+		TkSameshade,
+	TkCshellbackground,
+		RGB(0xFF, 0xFF, 0xFF),		/* Shell background - white (matches classic theme) */
+		TkSameshade,
 	-1,
 };
 

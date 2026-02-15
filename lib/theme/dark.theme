@@ -36,3 +36,7 @@ toolbar_background = #1E1E1EFF    # Dark toolbar background
 toolbar_foreground = #EEEEEEFF    # Light toolbar text
 toolbar_button = #2D2D2DFF        # Dark button background
 toolbar_button_active = #3D3D3DFF # Active button state
+
+# Shell/console colors (indices 26-27)
+shell_text = #EEEEEEFF            # Shell text (light gray)
+shell_background = #1A1A1AFF      # Shell background (very dark gray)

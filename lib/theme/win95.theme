@@ -42,3 +42,7 @@ toolbar_background = #C0C0C0FF    # Button face gray
 toolbar_foreground = #000000FF    # Black text
 toolbar_button = #C0C0C0FF        # Button face gray
 toolbar_button_active = #808080FF # Darker gray active state
+
+# Shell/console colors (indices 26-27)
+shell_text = #000000FF            # Shell text (black)
+shell_background = #C0C0C0FF      # Shell background (button face gray)

@@ -63,7 +63,7 @@ shwin_cfg := array[] of {
 	"frame .b -bd 1 -relief ridge",
 	"frame .ft -bd 0",
 	"scrollbar .ft.scroll -command {send scroll t}",
-	"text .ft.t -bd 1 -relief flat -yscrollcommand {send scroll s} -bg white -selectforeground black -selectbackground #CCCCCC",
+	"text .ft.t -bd 1 -relief flat -yscrollcommand {send scroll s}",
 	".ft.t tag configure sel -relief flat",
 	"pack .ft.scroll -side left -fill y",
 	"pack .ft.t -fill both -expand 1",
@@ -266,10 +266,6 @@ main(ctxt: ref Draw->Context, argv: list of string)
 
 	rdrpc: Rdreq;
 
-	if(blackmode) {
-		cmd(t, ".ft.t configure -bg black -selectforeground white");
-	}
-
 	# outpoint is place in text to insert characters printed by programs
 	cmd(t, ".ft.t mark set outpoint 1.0; .ft.t mark gravity outpoint left");
 
@@ -284,7 +280,7 @@ main(ctxt: ref Draw->Context, argv: list of string)
 		(nil, flds) := sys->tokenize(c, " \t");
 		if(flds != nil && hd flds == "haskbdfocus" && tl flds != nil){
 			haskbdfocus = int hd tl flds;
-			setcols(t);
+			update_holding_visuals(t);
 		}
 		tkclient->wmctl(t, c);
 	ecmd := <-edit =>
@@ -510,6 +506,29 @@ main(ctxt: ref Draw->Context, argv: list of string)
 	}
 }
 
+# Update visual indicators for holding/focus states using tags
+update_holding_visuals(t: ref Tk->Toplevel)
+{
+	# Remove old indicators
+	cmd(t, ".ft.t tag remove holding 1.0 end");
+	cmd(t, ".ft.t tag remove focused 1.0 end");
+
+	# Add holding indicator if needed
+	if(holding) {
+		cmd(t, ".ft.t tag add holding 1.0 end");
+		if(haskbdfocus)
+			cmd(t, ".ft.t tag configure holding -foreground #000099");
+		else
+			cmd(t, ".ft.t tag configure holding -foreground #005DBB");
+	}
+
+	# Add focus indicator if needed (and not holding)
+	if(haskbdfocus && !holding) {
+		cmd(t, ".ft.t tag add focused 1.0 end");
+		cmd(t, ".ft.t tag configure focused -foreground #000099");
+	}
+}
+
 setholding(t: ref Tk->Toplevel, hold: int)
 {
 	if(hold == holding)
@@ -520,24 +539,7 @@ setholding(t: ref Tk->Toplevel, hold: int)
 		sendinput(t);
 	}else
 		tkclient->settitle(t, winname+" (holding)");
-	setcols(t);
-}
-
-setcols(t: ref Tk->Toplevel)
-{
-	if(blackmode)
-		fgcol := "white";
-	else
-		fgcol = "black";
-	if(holding){
-		if(haskbdfocus)
-			fgcol = "#000099FF";	# DMedblue
-		else
-			fgcol = "#005DBBFF";	# DGreyblue
-	}
-	bgcol := "white";
-	cmd(t, ".ft.t configure -foreground "+fgcol+" -selectforeground "+fgcol+" -bg "+bgcol);
-	cmd(t, ".ft.t tag configure sel -foreground "+fgcol);
+	update_holding_visuals(t);
 }
 
 tkunquote(s: string): string
