@@ -102,6 +102,7 @@ partialread: array of byte;
 cwd := "";
 width, height, font: string;
 blackmode := 0;
+last_theme_ver := 0;
 
 events: list of string;
 evrdreq: list of Rdreq;
@@ -111,6 +112,55 @@ badmod(p: string)
 {
 	sys->print("wm/sh: cannot load %s: %r\n", p);
 	raise "fail:bad module";
+}
+
+# Read color from theme device
+getcolor(idx: int): string
+{
+	fd := sys->open(sys->sprint("#w/%d", idx), Sys->OREAD);
+	if(fd == nil)
+		return nil;
+	buf := array[32] of byte;
+	n := sys->read(fd, buf, len buf);
+	if(n <= 0)
+		return nil;
+	s := string buf[0:n];
+	while(len s > 0 && (s[len s-1] == '\n' || s[len s-1] == '\r'))
+		s = s[0:len s-1];
+	return s;
+}
+
+# Check if theme changed and update holding/focused colors
+check_theme_version(t: ref Tk->Toplevel)
+{
+	fd := sys->open("#w/ctl", Sys->OREAD);
+	if(fd == nil)
+		return;
+
+	buf := array[128] of byte;
+	n := sys->read(fd, buf, len buf);
+
+	if(n <= 0)
+		return;
+
+	s := string buf;
+	(nil, flds) := sys->tokenize(s, " \t\n");
+
+	# Parse "version N"
+	for(i := 0; i < len flds; i++) {
+		if(hd flds == "version") {
+			flds = tl flds;
+			if(flds != nil) {
+				ver := int hd flds;
+				if(ver > last_theme_ver) {
+					last_theme_ver = ver;
+					update_holding_visuals(t);
+				}
+			}
+			break;
+		}
+		flds = tl flds;
+	}
 }
 
 init(ctxt: ref Context, argv: list of string)
@@ -272,8 +322,10 @@ main(ctxt: ref Draw->Context, argv: list of string)
 	for(;;) alt {
 	c := <-wm.kbd =>
 		tk->keyboard(t, c);
+		check_theme_version(t);
 	m := <-wm.ptr =>
 		tk->pointer(t, *m);
+		check_theme_version(t);
 	c := <-wm.ctl or
 	c = <-t.wreq or
 	c = <-titlectl =>
@@ -283,6 +335,7 @@ main(ctxt: ref Draw->Context, argv: list of string)
 			update_holding_visuals(t);
 		}
 		tkclient->wmctl(t, c);
+		check_theme_version(t);
 	ecmd := <-edit =>
 		editor(t, ecmd);
 		sendinput(t);
@@ -513,19 +566,21 @@ update_holding_visuals(t: ref Tk->Toplevel)
 	cmd(t, ".ft.t tag remove holding 1.0 end");
 	cmd(t, ".ft.t tag remove focused 1.0 end");
 
+	# Get selection color from theme (TkCselect = index 4)
+	sel_color := getcolor(4);
+	if(sel_color == nil)
+		sel_color = "#4169E1";  # Fallback
+
 	# Add holding indicator if needed
 	if(holding) {
 		cmd(t, ".ft.t tag add holding 1.0 end");
-		if(haskbdfocus)
-			cmd(t, ".ft.t tag configure holding -foreground #000099");
-		else
-			cmd(t, ".ft.t tag configure holding -foreground #005DBB");
+		cmd(t, ".ft.t tag configure holding -foreground " + sel_color);
 	}
 
 	# Add focus indicator if needed (and not holding)
 	if(haskbdfocus && !holding) {
 		cmd(t, ".ft.t tag add focused 1.0 end");
-		cmd(t, ".ft.t tag configure focused -foreground #000099");
+		cmd(t, ".ft.t tag configure focused -foreground " + sel_color);
 	}
 }
 

@@ -412,6 +412,16 @@ enum
 	TkCshelltext,		/* Shell/console text */
 	TkCshellbackground,	/* Shell/console background */
 
+	/* Toolbar fine-grained colors (28-35) */
+	TkCtoolbarbghover,	/* Toolbar background on hover */
+	TkCtoolbarbtnhover,	/* Toolbar button hover state */
+	TkCtoolbarbtndisabled,	/* Toolbar button disabled state */
+	TkCtoolbarborder,	/* Toolbar border color */
+	TkCtoolbarmenubg,	/* Toolbar menu background */
+	TkCtoolbarmenufg,	/* Toolbar menu text */
+	TkCtoolbarmenuselect,	/* Toolbar menu selection */
+	TkCtoolbarfgndhover,	/* Toolbar text on hover */
+
 	TkNcolor,
 
 	TkSameshade	= 0,		/* relative shade for tkgshade() and tkrgbashade()*/

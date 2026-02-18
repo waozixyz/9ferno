@@ -46,3 +46,13 @@ toolbar_button_active = #E95420FF # Orange active state
 # Shell/console colors (indices 26-27)
 shell_text = #000000FF            # Shell text (black)
 shell_background = #FFFFFFFF      # Shell background (white)
+
+# Toolbar fine-grained colors (indices 28-35) - Ubuntu theme
+toolbar_hover = #E8E8E8FF         # Toolbar hover
+toolbar_btn_hover = #FF6B34FF     # Button hover (orange)
+toolbar_btn_disabled = #DDDDDDFF  # Disabled button
+toolbar_border = #AAAAAAFF        # Toolbar border
+toolbar_menu_bg = #FFFFFFFF       # Menu background
+toolbar_menu_fg = #2C2C2CFF       # Menu text
+toolbar_menu_select = #E95420FF   # Menu selection (Ubuntu orange)
+toolbar_fg_hover = #2C2C2CFF      # Text on hover

@@ -19,7 +19,7 @@
 /* Forward declaration from devdraw.c */
 extern void drawwakeall(void);
 
-#define NTHEMECOLORS  28
+#define NTHEMECOLORS  36
 
 /* QID path values for theme files */
 enum {
@@ -56,6 +56,14 @@ enum {
 	Qcolor25,  /* TkCtoolbarbuttonactive */
 	Qcolor26,  /* TkCshelltext */
 	Qcolor27,  /* TkCshellbackground */
+	Qcolor28,  /* TkCtoolbarbghover */
+	Qcolor29,  /* TkCtoolbarbtnhover */
+	Qcolor30,  /* TkCtoolbarbtndisabled */
+	Qcolor31,  /* TkCtoolbarborder */
+	Qcolor32,  /* TkCtoolbarmenubg */
+	Qcolor33,  /* TkCtoolbarmenufg */
+	Qcolor34,  /* TkCtoolbarmenuselect */
+	Qcolor35,  /* TkCtoolbarfgndhover */
 };
 
 /* Theme color state */
@@ -110,6 +118,14 @@ static Dirtab themedirtab[] = {
 	"25",         {Qcolor25}, 0, 0666,
 	"26",         {Qcolor26}, 0, 0666,
 	"27",         {Qcolor27}, 0, 0666,
+	"28",         {Qcolor28}, 0, 0666,
+	"29",         {Qcolor29}, 0, 0666,
+	"30",         {Qcolor30}, 0, 0666,
+	"31",         {Qcolor31}, 0, 0666,
+	"32",         {Qcolor32}, 0, 0666,
+	"33",         {Qcolor33}, 0, 0666,
+	"34",         {Qcolor34}, 0, 0666,
+	"35",         {Qcolor35}, 0, 0666,
 };
 
 /* Color names matching TkC indices */
@@ -142,6 +158,14 @@ static char* colornames[NTHEMECOLORS] = {
 	"toolbar_button_active", /* TkCtoolbarbuttonactive */
 	"shell_text",           /* TkCshelltext */
 	"shell_background",     /* TkCshellbackground */
+	"toolbar_hover",        /* TkCtoolbarbghover */
+	"toolbar_btn_hover",    /* TkCtoolbarbtnhover */
+	"toolbar_btn_disabled", /* TkCtoolbarbtndisabled */
+	"toolbar_border",       /* TkCtoolbarborder */
+	"toolbar_menu_bg",      /* TkCtoolbarmenubg */
+	"toolbar_menu_fg",      /* TkCtoolbarmenufg */
+	"toolbar_menu_select",  /* TkCtoolbarmenuselect */
+	"toolbar_fg_hover",     /* TkCtoolbarfgndhover */
 };
 
 static int load_theme_by_name(char *name);
@@ -179,6 +203,14 @@ static ulong defaultcolors[NTHEMECOLORS] = {
 	0xC0C0C0FF, /* toolbar_button_active (TkCtoolbarbuttonactive) */
 	0x000000FF, /* shell_text (TkCshelltext) - Black (matches classic theme) */
 	0xFFFFFFFF, /* shell_background (TkCshellbackground) - White (matches classic theme) */
+	0xE8E8E8FF, /* toolbar_hover (TkCtoolbarbghover) */
+	0xEEEEEEFF, /* toolbar_btn_hover (TkCtoolbarbtnhover) */
+	0xBBBBBBFF, /* toolbar_btn_disabled (TkCtoolbarbtndisabled) */
+	0xAAAAAAFF, /* toolbar_border (TkCtoolbarborder) */
+	0xFFFFFFFF, /* toolbar_menu_bg (TkCtoolbarmenubg) */
+	0x000000FF, /* toolbar_menu_fg (TkCtoolbarmenufg) */
+	0x4169E1FF, /* toolbar_menu_select (TkCtoolbarmenuselect) */
+	0x000000FF, /* toolbar_fg_hover (TkCtoolbarfgndhover) */
 };
 
 static void

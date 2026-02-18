@@ -110,6 +110,30 @@ static Coltab coltab[] =
 	TkCshellbackground,
 		RGB(0xFF, 0xFF, 0xFF),		/* Shell background - white (matches classic theme) */
 		TkSameshade,
+	TkCtoolbarbghover,
+		RGB(0xE8, 0xE8, 0xE8),		/* Toolbar hover */
+		TkSameshade,
+	TkCtoolbarbtnhover,
+		RGB(0xEE, 0xEE, 0xEE),		/* Toolbar button hover */
+		TkSameshade,
+	TkCtoolbarbtndisabled,
+		RGB(0xBB, 0xBB, 0xBB),		/* Toolbar button disabled */
+		TkSameshade,
+	TkCtoolbarborder,
+		RGB(0xAA, 0xAA, 0xAA),		/* Toolbar border */
+		TkSameshade,
+	TkCtoolbarmenubg,
+		RGB(0xFF, 0xFF, 0xFF),		/* Toolbar menu background */
+		TkSameshade,
+	TkCtoolbarmenufg,
+		RGB(0x00, 0x00, 0x00),		/* Toolbar menu text */
+		TkSameshade,
+	TkCtoolbarmenuselect,
+		RGB(0x41, 0x69, 0xE1),		/* Toolbar menu selection (matches title bg) */
+		TkSameshade,
+	TkCtoolbarfgndhover,
+		RGB(0x00, 0x00, 0x00),		/* Toolbar text on hover */
+		TkSameshade,
 	-1,
 };
 

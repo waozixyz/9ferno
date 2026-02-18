@@ -46,3 +46,13 @@ toolbar_button_active = #BD93F9FF # Purple active state
 # Shell/console colors (indices 26-27)
 shell_text = #F8F8F2FF            # Shell text (light gray)
 shell_background = #1A1A1AFF      # Shell background (very dark gray)
+
+# Toolbar fine-grained colors (indices 28-35) - Dracula theme
+toolbar_hover = #343746FF         # Toolbar hover
+toolbar_btn_hover = #4E5A7EFF     # Button hover
+toolbar_btn_disabled = #282A36FF  # Disabled button
+toolbar_border = #191A21FF        # Dark border
+toolbar_menu_bg = #282A36FF       # Menu background
+toolbar_menu_fg = #F8F8F2FF       # Menu text
+toolbar_menu_select = #BD93F9FF   # Menu selection (purple)
+toolbar_fg_hover = #F8F8F2FF      # Text on hover

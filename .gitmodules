@@ -1,0 +1,3 @@
+[submodule "lotus"]
+	path = lotus
+	url = git@git.sr.ht:~waozi/lotus

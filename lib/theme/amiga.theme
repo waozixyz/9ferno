@@ -46,3 +46,13 @@ toolbar_button_active = #0000A4FF # Blue active state
 # Shell/console colors (indices 26-27)
 shell_text = #000000FF            # Shell text (black)
 shell_background = #FFFFFFFF      # Shell background (white)
+
+# Toolbar fine-grained colors (indices 28-35) - Amiga theme
+toolbar_hover = #C0C0C0FF         # Toolbar hover
+toolbar_btn_hover = #D0D0D0FF     # Button hover
+toolbar_btn_disabled = #909090FF  # Disabled button
+toolbar_border = #000000FF        # Black border
+toolbar_menu_bg = #FFFFFFFF       # Menu background
+toolbar_menu_fg = #000000FF       # Menu text
+toolbar_menu_select = #0000A4FF   # Menu selection (Amiga blue)
+toolbar_fg_hover = #000000FF      # Text on hover

@@ -46,3 +46,13 @@ toolbar_button_active = #808080FF # Darker gray active state
 # Shell/console colors (indices 26-27)
 shell_text = #000000FF            # Shell text (black)
 shell_background = #C0C0C0FF      # Shell background (button face gray)
+
+# Toolbar fine-grained colors (indices 28-35) - Windows 95 style
+toolbar_hover = #D0D0D0FF         # Toolbar hover
+toolbar_btn_hover = #E0E0E0FF     # Button hover
+toolbar_btn_disabled = #A0A0A0FF  # Disabled button
+toolbar_border = #808080FF        # Dark gray border
+toolbar_menu_bg = #C0C0C0FF       # Menu background (button face)
+toolbar_menu_fg = #000000FF       # Menu text
+toolbar_menu_select = #000080FF   # Menu selection (navy blue)
+toolbar_fg_hover = #000000FF      # Text on hover

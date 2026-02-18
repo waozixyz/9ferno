@@ -46,3 +46,13 @@ toolbar_button_active = #000000FF # Black active state
 # Shell/console colors (indices 26-27)
 shell_text = #000000FF            # Shell text (black)
 shell_background = #FFFFFFFF      # Shell background (white)
+
+# Toolbar fine-grained colors (indices 28-35) - High contrast
+toolbar_hover = #E0E0E0FF         # Toolbar hover
+toolbar_btn_hover = #E0E0E0FF     # Button hover
+toolbar_btn_disabled = #A0A0A0FF  # Disabled button
+toolbar_border = #000000FF        # Black border
+toolbar_menu_bg = #FFFFFFFF       # Menu background
+toolbar_menu_fg = #000000FF       # Menu text
+toolbar_menu_select = #000000FF   # Menu selection (black)
+toolbar_fg_hover = #000000FF      # Text on hover

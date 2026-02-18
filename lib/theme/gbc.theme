@@ -48,3 +48,13 @@ toolbar_button_active = #f89800FF # Amber accent for active
 # Shell/console colors (indices 26-27)
 shell_text = #0f380fFF            # Shell text (darkest green)
 shell_background = #9bbc0fFF      # Shell background (lightest green)
+
+# Toolbar fine-grained colors (indices 28-35) - Game Boy Color theme
+toolbar_hover = #9bbc0fFF         # Toolbar hover
+toolbar_btn_hover = #b5c520FF     # Button hover
+toolbar_btn_disabled = #6b8d0aFF  # Disabled button
+toolbar_border = #0f380fFF        # Dark green border
+toolbar_menu_bg = #9bbc0fFF       # Menu background
+toolbar_menu_fg = #0f380fFF       # Menu text
+toolbar_menu_select = #f89800FF   # Menu selection (amber)
+toolbar_fg_hover = #0f380fFF      # Text on hover

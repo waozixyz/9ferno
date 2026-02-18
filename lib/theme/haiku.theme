@@ -46,3 +46,13 @@ toolbar_button_active = #FFC000FF # Yellow active state
 # Shell/console colors (indices 26-27)
 shell_text = #000000FF            # Shell text (black)
 shell_background = #FFFFFFFF      # Shell background (white)
+
+# Toolbar fine-grained colors (indices 28-35) - Haiku theme
+toolbar_hover = #E0E0E0FF         # Toolbar hover
+toolbar_btn_hover = #FFD030FF     # Button hover (yellow)
+toolbar_btn_disabled = #D0D0D0FF  # Disabled button
+toolbar_border = #000000FF        # Black border
+toolbar_menu_bg = #FFFFFFFF       # Menu background
+toolbar_menu_fg = #000000FF       # Menu text
+toolbar_menu_select = #FFC000FF   # Menu selection (yellow)
+toolbar_fg_hover = #000000FF      # Text on hover

@@ -46,3 +46,13 @@ toolbar_button_active = #88C0D0FF # Frost blue active
 # Shell/console colors (indices 26-27)
 shell_text = #2E3440FF            # Shell text (dark blue-gray)
 shell_background = #FFFFFFFF      # Shell background (white)
+
+# Toolbar fine-grained colors (indices 28-35) - Nord theme
+toolbar_hover = #E5E9F0FF         # Toolbar hover
+toolbar_btn_hover = #ECEFF4FF     # Button hover
+toolbar_btn_disabled = #D8DEE9FF  # Disabled button
+toolbar_border = #4C566AFF        # Nord border
+toolbar_menu_bg = #FFFFFFFF       # Menu background
+toolbar_menu_fg = #2E3440FF       # Menu text
+toolbar_menu_select = #88C0D0FF   # Menu selection (Nord blue)
+toolbar_fg_hover = #2E3440FF      # Text on hover

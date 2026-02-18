@@ -46,3 +46,13 @@ toolbar_button_active = #FFC090FF  # Lighter pink button
 # Shell/console colors (indices 26-27)
 shell_text = #4A0048FF            # Shell text (dark purple)
 shell_background = #FFCCFFFF      # Shell background (light pink)
+
+# Toolbar fine-grained colors (indices 28-35) - Pink theme
+toolbar_hover = #FFC0E0FF         # Toolbar hover
+toolbar_btn_hover = #FFD0F0FF     # Button hover
+toolbar_btn_disabled = #D090B0FF  # Disabled button
+toolbar_border = #00000000        # No border
+toolbar_menu_bg = #FFCCFFFF       # Menu background
+toolbar_menu_fg = #2A1A1AFF       # Menu text
+toolbar_menu_select = #FF69B4FF   # Menu selection (hot pink)
+toolbar_fg_hover = #2A1A1AFF      # Text on hover
