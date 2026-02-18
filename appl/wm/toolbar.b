@@ -46,17 +46,6 @@ MAXCONSOLELINES:	con 1024;
 font: string;
 icon: string = "logo_32.bit";
 
-# Color indices for toolbar theme integration
-TOOLBAR_BG := 22;
-TOOLBAR_FG := 23;
-TOOLBAR_BUTTON := 24;
-TOOLBAR_BUTTON_ACTIVE := 25;
-TOOLBAR_BTN_HOVER := 29;      # toolbar_btn_hover
-TOOLBAR_BORDER := 31;         # toolbar_border
-TOOLBAR_MENU_BG := 32;        # toolbar_menu_bg
-TOOLBAR_MENU_FG := 33;        # toolbar_menu_fg
-TOOLBAR_MENU_SELECT := 34;    # toolbar_menu_select
-
 # execute this if no menu items have been created
 # by the init script.
 defaultscript :=
@@ -65,127 +54,12 @@ defaultscript :=
 
 tbtop: ref Tk->Toplevel;
 screenr: Rect;
-last_theme_ver := 0;
 taskbar_buttons: list of string;
-themeevent: chan of string;
 
 badmodule(p: string)
 {
 	sys->fprint(stderr(), "toolbar: cannot load %s: %r\n", p);
 	raise "fail:bad module";
-}
-
-# Read color from theme device
-getcolor(idx: int): string
-{
-	fd := sys->open(sys->sprint("#w/%d", idx), Sys->OREAD);
-	if(fd == nil)
-		return nil;
-	buf := array[32] of byte;
-	n := sys->read(fd, buf, len buf);
-	if(n <= 0)
-		return nil;
-	s := string buf[0:n];
-	while(len s > 0 && (s[len s-1] == '\n' || s[len s-1] == '\r'))
-		s = s[0:len s-1];
-	return s;
-}
-
-# Apply theme colors to toolbar widgets
-# Called at startup and when theme changes
-apply_widget_colors()
-{
-	bg := getcolor(TOOLBAR_BG);
-	fg := getcolor(TOOLBAR_FG);
-	btn := getcolor(TOOLBAR_BUTTON);
-	btn_active := getcolor(TOOLBAR_BUTTON_ACTIVE);
-	menu_bg := getcolor(TOOLBAR_MENU_BG);
-	menu_fg := getcolor(TOOLBAR_MENU_FG);
-	menu_select := getcolor(TOOLBAR_MENU_SELECT);
-
-	# Only apply if we got all required colors
-	if(bg != nil && fg != nil && btn != nil && btn_active != nil) {
-		cmd(tbtop, ".toolbar configure -background " + bg);
-		cmd(tbtop, ". configure -background " + bg);
-		cmd(tbtop, ".toolbar.start configure -background " + btn +
-			" -foreground " + fg +
-			" -activebackground " + btn_active);
-		if(menu_bg != nil && menu_fg != nil && menu_select != nil) {
-			cmd(tbtop, ".m configure -background " + menu_bg +
-				" -foreground " + menu_fg +
-				" -activebackground " + menu_select +
-				" -selectcolor " + menu_select);
-		}
-		cmd(tbtop, "update");
-	}
-}
-
-# Check if theme changed and update colors
-check_theme_version()
-{
-	fd := sys->open("#w/ctl", Sys->OREAD);
-	if(fd == nil)
-		return;
-
-	buf := array[128] of byte;
-	n := sys->read(fd, buf, len buf);
-
-	if(n <= 0)
-		return;
-
-	s := string buf;
-	(nil, flds) := sys->tokenize(s, " \t\n");
-
-	# Parse "version N"
-	for(i := 0; i < len flds; i++) {
-		if(hd flds == "version") {
-			flds = tl flds;
-			if(flds != nil) {
-				ver := int hd flds;
-				if(ver > last_theme_ver) {
-					last_theme_ver = ver;
-					apply_widget_colors();
-					refresh_taskbar_buttons();
-					cmd(tbtop, "update");
-				}
-			}
-			break;
-		}
-		flds = tl flds;
-	}
-}
-
-# Refresh all taskbar buttons with current theme colors
-refresh_taskbar_buttons()
-{
-	btn := getcolor(TOOLBAR_BUTTON);
-	fg := getcolor(TOOLBAR_FG);
-	btn_active := getcolor(TOOLBAR_BUTTON_ACTIVE);
-
-	if(btn == nil || fg == nil || btn_active == nil)
-		return;
-
-	for(ids := taskbar_buttons; ids != nil; ids = tl ids) {
-		id := hd ids;
-		cmd(tbtop, ".toolbar." + id + " configure -background " + btn +
-			" -foreground " + fg +
-			" -activebackground " + btn_active +
-			" -activeforeground " + fg);
-	}
-}
-
-# Background process that blocks on #w/event until theme changes
-# When theme changes, unblocks and notifies main event loop
-theme_notifier(c: chan of string)
-{
-	fd := sys->open("#w/event", Sys->OREAD);
-	if(fd == nil)
-		return;
-
-	buf := array[128] of byte;
-	while((n := sys->read(fd, buf, len buf)) > 0) {
-		c <-= string buf[0:n];  # Notify main loop: theme changed!
-	}
 }
 
 
@@ -272,9 +146,6 @@ init(ctxt: ref Draw->Context, argv: list of string)
 	tbtop = toolbar(ctxt, startmenu, exec, task);
 	tkclient->startinput(tbtop, "ptr" :: "kbd" :: "control" :: nil);
 
-	themeevent = chan of string;
-	spawn theme_notifier(themeevent);
-
 	layout(tbtop);
 
 	shctxt := Context.new(ctxt);
@@ -301,22 +172,13 @@ sys->print("error: %s\n", err);
 	snarf: array of byte;
 #	write("/prog/"+string sys->pctl(0, nil)+"/ctl", "restricted"); # for testing
 	for(;;) alt{
-	s := <-themeevent =>
-		# Theme changed! Update all toolbar colors immediately.
-		apply_widget_colors();
-		refresh_taskbar_buttons();
-		cmd(tbtop, "update");
-
 	k := <-tbtop.ctxt.kbd =>
 		tk->keyboard(tbtop, k);
-		check_theme_version();
 	m := <-tbtop.ctxt.ptr =>
 		tk->pointer(tbtop, *m);
-		check_theme_version();
 	s := <-tbtop.ctxt.ctl or
 	s = <-tbtop.wreq =>
 		wmctl(tbtop, s);
-		check_theme_version();
 	s := <-exec =>
 		# guard against parallel access to the shctxt environment
 		if (donesetup){
@@ -412,27 +274,11 @@ iconify(id, label: string)
 {
 	label = condenselabel(label);
 
-	# Get theme colors
-	btn := getcolor(TOOLBAR_BUTTON);
-	fg := getcolor(TOOLBAR_FG);
-	btn_active := getcolor(TOOLBAR_BUTTON_ACTIVE);
-
 	e := tk->cmd(tbtop, "button .toolbar." +id+" -command {send task "+id+"} -takefocus 0");
 	cmd(tbtop, ".toolbar." +id+" configure" + font + " -text '" + label);
 
-	# Apply theme colors to taskbar button
-	if(btn != nil && fg != nil && btn_active != nil) {
-		cmd(tbtop, ".toolbar." +id+" configure -background " + btn +
-			" -foreground " + fg +
-			" -activebackground " + btn_active +
-			" -activeforeground " + fg);
-	}
-
 	if(e[0] != '!')
 		cmd(tbtop, "pack .toolbar."+id+" -side left -fill y");
-
-	# Track this button for theme refresh
-	taskbar_buttons = id :: taskbar_buttons;
 
 	cmd(tbtop, "update");
 }
@@ -441,23 +287,10 @@ deiconify(id: string)
 {
 	e := tk->cmd(tbtop, "destroy .toolbar."+id);
 	if(e == nil){
-		# Remove from tracking list
-		taskbar_buttons = filter_id(taskbar_buttons, id);
-
 		tkclient->wmctl(tbtop, sys->sprint("ctl %q untask", id));
 		tkclient->wmctl(tbtop, sys->sprint("ctl %q kbdfocus 1", id));
 	}
 	cmd(tbtop, "update");
-}
-
-# Filter an ID out of a list
-filter_id(lst: list of string, id: string): list of string
-{
-	if(lst == nil)
-		return nil;
-	if(hd lst == id)
-		return tl lst;
-	return hd lst :: filter_id(tl lst, id);
 }
 
 layout(top: ref Tk->Toplevel)
@@ -493,9 +326,6 @@ toolbar(ctxt: ref Draw->Context, startmenu: int,
 	}
 	cmd(tbtop, "pack .toolbar -fill x");
 	cmd(tbtop, "menu .m");
-
-	# Apply theme colors at startup
-	apply_widget_colors();
 
 	return tbtop;
 }

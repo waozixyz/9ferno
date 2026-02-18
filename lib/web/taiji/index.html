@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8" />
+<head>
+    <title>Taiji OS</title>
+    <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="apple-touch-icon" sizes="57x57" href="/icons/apple-icon-57x57.png">
+    <link rel="apple-touch-icon" sizes="60x60" href="/icons/apple-icon-60x60.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="/icons/apple-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="/icons/apple-icon-76x76.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="/icons/apple-icon-114x114.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="/icons/apple-icon-120x120.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="/icons/apple-icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/apple-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-icon-180x180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/android-icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="msapplication-TileColor" content="#ffffff">
+    <meta name="msapplication-TileImage" content="/icons/ms-icon-144x144.png">
+    <meta name="theme-color" content="#ffffff">
+</head>
+<body>
+    <header>
+        <img src="logo.png" />
+        <h1>TAIJI OS</h1>
+        <p>Because "The Cloud" is just someone else's cage.</p>
+    </header>
+    <h1>What is Taiji OS?</h1>
+    <p>TaijiOS is a modern fork of <b>Inferno® Distributed Operating System</b> (originally developed at Bell Labs). It brings powerful distributed computing capabilities to modern systems with updated build tools and 9front driver integration.</p>
+    <h1>Features</h1>
+    <ul>
+        <li><b>Limbo VM:</b> Portable Dis bytecode runs on native hardware or hosted (Linux/BSD/macOS).</li>
+        <li><b>9P:</b> Every resource (CPU, file, device) is shared via the Styx protocol.</li>
+        <li><b>Modern Development:</b> Leveraging our custom transpiler <a href="https://kryonlabs.com">Kryon</a> you can easily make and port apps in a familiar qml like syntax.</li>
+        <li><b>UXN integration:</b> Varvara virtual machine is integrated on the kernel level allowing you to emulate 8-bit uxntal applications natively on inferno.</li>
+        <li><b>Customizability:</b> Bringing back simple windows 2000 era customization.</li>
+    </ul>
+    <h1>Quick start (NixOS)</h1>
+    <pre>
+        <code>
+# Clone the repository
+git clone https://github.com/KryonLabs/TaijiOS.git
+cd TaijiOS
+
+# Enter the build shell
+nix-shell
+
+# Build and materialize the WM
+./run-wm.sh
+
+        </code>
+    </pre>
+    <footer>
+        TAIJIOS.NET // EST. 2026 // EVERYTHING IS A FILE
+        <center>
+            <a href="https://waozi.xyz">☯</a>
+        </center>
+    </footer>
+</body>

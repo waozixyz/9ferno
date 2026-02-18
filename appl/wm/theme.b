@@ -207,45 +207,32 @@ get_selected(): string
 
 apply_theme()
 {
-	sys->fprint(sys->fildes(2), "theme: apply_theme() ENTRY\n");
-
 	theme := get_selected();
 	if(theme == nil) {
 		cmd(top, ".title configure -text {No theme selected!}");
 		return;
 	}
 
-	sys->fprint(sys->fildes(2), "theme: selected theme='%s'\n", theme);
-
 	# Write to #w/theme (kernel device path)
-	sys->fprint(sys->fildes(2), "theme: opening #w/theme...\n");
 	fd := sys->open("#w/theme", Sys->OWRITE);
 	if(fd == nil) {
 		cmd(top, ".title configure -text {Cannot open #w/theme!}");
-		sys->fprint(sys->fildes(2), "theme: cannot open #w/theme: %r\n");
 		return;
 	}
 
-	sys->fprint(sys->fildes(2), "theme: writing theme to device...\n");
 	if(sys->write(fd, array of byte theme, len theme) != len theme) {
 		cmd(top, ".title configure -text {Failed to write theme!}");
-		sys->fprint(sys->fildes(2), "theme: write failed: %r\n");
 		return;
 	}
 
-	sys->fprint(sys->fildes(2), "theme: closing device...\n");
 	# Device file closed automatically
 
-	sys->fprint(sys->fildes(2), "theme: force immediate refresh...\n");
 	# Force immediate refresh of current window's theme
 	# This ensures the theme switcher itself updates with the new colors
 	tk->refreshallenvs();
 
-	sys->fprint(sys->fildes(2), "theme: updating title text...\n");
 	# Update our title text
 	cmd(top, sys->sprint(".title configure -text {Theme: %s}", theme));
-
-	sys->fprint(sys->fildes(2), "theme: apply_theme() DONE - returning to event loop\n");
 
 	# DONE! Kernel handles everything else automatically:
 	# - Theme loaded into #w/0-25 color files
