@@ -1,0 +1,157 @@
+
+/* The Base "Industrial Paper" */
+html {
+    background-color: #e8e4d8; /* Warm Beige */
+    color: #2b2b2b;            /* Soft Black */
+    font-family: "Segoe UI", Tahoma, Geneva, sans-serif;
+    line-height: 1.6;
+    padding: 5% 10%;           /* This creates the "centered" look naturally */
+}
+
+body {
+    max-width: 700px;          /* Prevents text from stretching too far */
+    margin: 0;                 /* Resets default browser margin */
+}
+
+/* Clean, Bold Heading */
+h1 {
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid #2b2b2b;
+    display: inline-block;     /* Only underlines the text, not the whole screen */
+    padding-bottom: 5px;
+}
+
+/* Header element styling */
+header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 3px solid #2b2b2b;
+}
+
+header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    margin-bottom: 0.5rem;
+    border-bottom: none;
+    padding-bottom: 0;
+    display: block;
+}
+
+header p {
+    font-size: 1.2rem;
+    font-style: italic;
+    color: #5a5a5a;
+    margin-bottom: 0;
+}
+
+/* The "Wondering Child" Paragraphs */
+p {
+    margin-bottom: 1.2rem;
+    font-size: 1.05rem;
+    word-spacing: 0.05rem;
+}
+
+/* Code Block Container */
+pre {
+    background-color: #d4d0c4; /* Slightly darker than page background */
+    border: 1px solid #a8a498;
+    border-radius: 4px;
+    padding: 1rem;
+    margin: 1.5rem 0;
+    overflow-x: auto;
+    font-family: "Consolas", "Monaco", "Courier New", monospace;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* Inline Code */
+code {
+    font-family: "Consolas", "Monaco", "Courier New", monospace;
+    background-color: #d4d0c4;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+
+/* Code blocks inside pre */
+pre code {
+    background-color: transparent;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
+}
+
+/* Custom Syntax Highlighting Colors */
+.token-keyword {
+    color: #8b3a3a; /* Dark red */
+    font-weight: 600;
+}
+
+.token-string {
+    color: #2d5d2d; /* Dark green */
+}
+
+.token-comment {
+    color: #6b6b6b; /* Gray */
+    font-style: italic;
+}
+
+.token-function {
+    color: #3a5c8b; /* Dark blue */
+    font-weight: 500;
+}
+
+.token-number {
+    color: #8b6a3a; /* Dark brown */
+}
+
+.token-operator {
+    color: #5a5a5a; /* Medium gray */
+}
+
+.token-type {
+    color: #5c3a8b; /* Dark purple */
+}
+
+.token-variable {
+    color: #2b2b2b; /* Same as base text */
+}
+
+.token-builtin {
+    color: #8b3a5c; /* Dark magenta */
+    font-weight: 600;
+}
+
+/* Footer Styling */
+footer {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 2px solid #2b2b2b;
+    text-align: center;
+    font-size: 0.85rem;
+    color: #5a5a5a;
+    font-weight: 500;
+    letter-spacing: 0.05rem;
+}
+
+/* Link Styling */
+a {
+    color: #3a5c8b; /* Dark blue */
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+a:hover {
+    color: #5c3a8b; /* Dark purple on hover */
+    border-bottom-color: #5c3a8b;
+}
+
+a:active {
+    color: #8b3a3a; /* Dark red when clicked */
+    border-bottom-color: #8b3a3a;
+}

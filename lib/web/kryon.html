@@ -1,0 +1,59 @@
+<html lang="en">
+<meta charset="utf-8" />
+<head>
+    <title>Kryon Labs</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <h1>Kryon Labs</h1>
+        <p>Because "The Cloud" is just someone else's cage.</p>
+    </header>
+    <h1>What is Kryon?</h1>
+    <p><b>Kryon</b> is a high-level transpiler that brings 90s simplicity to the modern era.</p>
+    <p>By creating a modern qml like syntax that generates native limbo code we allow you to build sophisticated interfaces that talk directly to distributed hardware via the <b>9P Protocol</b></p>
+    <p>Kryon is the official UI framework for <a href="taiji.html">TaijiOS</a>, a modern distributed operating system. Stop wrestling with bloated frameworks. Kryon uses a clean, block-based architecture for UI and system modules.</p>
+    <h1>Features</h1>
+    <ul>
+        <li><b>Pure Efficiency:</b> Transpiles directly to optimized system code.</li>
+        <li><b>Native 9P:</b> File-sharing and network resources are handled as local objects.</li>
+        <li><b>Tk Styling:</b> Classic, predictable, and incredibly fast UI rendering.</li>
+        <li><b>Unified Modules:</b> Access every system resources through a single simple interface.</li>
+        <li><b>Declarative Syntax:</b> Write less, do more with block-based UI definitions.</li>
+    </ul>
+    <h1>Code Example</h1>
+    <p>Simple button with callbacks and Tk-compatible styling:</p>
+    <pre><code>
+<span class="token-keyword">fn</span> <span class="token-function">handleClick</span>() {
+    sys<span class="token-operator">-></span>print(<span class="token-string">"Button clicked!\n"</span>);
+}
+
+<span class="token-type">Window</span> {
+    title <span class="token-operator">=</span> <span class="token-string">"Button Demo"</span>
+    width <span class="token-operator">=</span> <span class="token-number">600</span>; height <span class="token-operator">=</span> <span class="token-number">400</span>
+    bg <span class="token-operator">=</span> <span class="token-string">"#191919"</span>
+
+    <span class="token-type">Center</span> {
+        <span class="token-type">Button</span> {
+            text <span class="token-operator">=</span> <span class="token-string">"Click Me!"</span>
+            fg <span class="token-operator">=</span> <span class="token-string">"pink"</span>; bg <span class="token-operator">=</span> <span class="token-string">"#404080"</span>
+            font <span class="token-operator">=</span> <span class="token-string">"Helvetica 14 bold"</span>
+            padx <span class="token-operator">=</span> <span class="token-number">20</span>; pady <span class="token-operator">=</span> <span class="token-number">10</span>
+            relief <span class="token-operator">=</span> <span class="token-string">"raised"</span>; borderwidth <span class="token-operator">=</span> <span class="token-number">2</span>
+            onClick <span class="token-operator">=</span> handleClick
+        }
+    }
+}</code></pre>
+    <h1>Sponsors</h1>
+    <div>
+        <h2>5bitcube</h2>
+        <ul>
+            <li><a href="https://5bitcube.com">Website</a></li>
+            <li><a href="https://x.com/5bitcube">Twitter</a></li>
+        </ul>
+    </div>
+    <footer>
+        KRYONLABS.COM // EST. 2026 // EVERYTHING IS A FILE
+    </footer>
+</body>

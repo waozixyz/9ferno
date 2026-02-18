@@ -8,12 +8,12 @@ set -e
 SITE_DIR="$(dirname "$0")"
 TARBALL="$SITE_DIR/site.tar.gz"
 USERNAME="waozi"
-DOMAINS=("$USERNAME.srht.site" "waozi.xyz")
+DOMAINS=("$USERNAME.srht.site" "waozi.xyz" "www.waozi.xyz")
 
 # Create tarball
 echo "Creating tarball..."
 cd "$SITE_DIR"
-tar -cvz index.html > site.tar.gz
+tar -cvz *.html style.css > site.tar.gz
 
 # Check if hut is installed
 if ! command -v hut &> /dev/null; then
@@ -33,5 +33,6 @@ done
 echo "✓ Site published successfully to all domains!"
 echo "  - https://waozi.srht.site"
 echo "  - https://waozi.xyz"
+echo "  - https://www.waozi.xyz"
 echo ""
 echo "Note: First load may take a few seconds while TLS certificates are obtained"
