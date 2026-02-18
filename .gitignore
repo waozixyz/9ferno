@@ -5,6 +5,8 @@ android-port/Inferno-OS_Android
 *.md
 jit-plan
 
+lib/web/site.tar.gz
+
 # Editor and IDE files
 .vscode/
 .idea/
