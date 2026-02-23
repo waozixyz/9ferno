@@ -16,6 +16,8 @@ pkgs.mkShell {
     bash
     perl
 
+    plan9port
+
     # For building emu (Inferno emulator)
     linuxHeaders
 
