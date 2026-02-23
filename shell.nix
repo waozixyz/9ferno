@@ -16,8 +16,6 @@ pkgs.mkShell {
     bash
     perl
 
-    plan9port
-
     # For building emu (Inferno emulator)
     linuxHeaders
 
@@ -51,7 +49,7 @@ pkgs.mkShell {
 
     # Set PATH for TaijiOS tools
     # Include utils/mk for the mk build tool, and Linux/amd64/bin for built binaries
-    export PATH="$ROOT/utils/mk:$ROOT/Linux/amd64/bin:$PATH"
+    export PATH="$ROOT/utils/mk:$ROOT/Linux/amd64/bin:${pkgs.plan9port}/plan9/bin:$PATH"
 
     # Add X11 library paths to linker search path
     export LD_LIBRARY_PATH="${pkgs.xorg.libX11}/lib:${pkgs.xorg.libXext}/lib:$LD_LIBRARY_PATH"
